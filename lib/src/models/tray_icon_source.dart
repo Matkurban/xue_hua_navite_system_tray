@@ -109,11 +109,11 @@ class TrayIconSource {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'type': type.name,
-      if (path != null) 'path': path,
-      if (bytes != null) 'bytes': bytes,
-      if (systemName != null) 'systemName': systemName,
+      'path': ?path,
+      'bytes': ?bytes,
+      'systemName': ?systemName,
       'isTemplate': isTemplate,
-      if (iconSize != null) 'iconSize': iconSize,
+      'iconSize': ?iconSize,
     };
   }
 

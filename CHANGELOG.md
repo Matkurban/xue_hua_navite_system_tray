@@ -1,3 +1,7 @@
+## 1.0.3
+
+* Replaced explicit null checks in map literals with null-aware elements (`'key': ?value`) so `use_null_aware_elements` static analysis passes.
+
 ## 1.0.2
 
 * Fixed Linux CMake / gtest build issues that blocked CMake 4.x builds.

@@ -1,6 +1,6 @@
 name: xue_hua_navite_system_tray
 description: "A full-featured native desktop system tray plugin for Flutter across macOS, Windows, and Linux."
-version: 1.0.2
+version: 1.0.3
 homepage: https://github.com/Matkurban/xue_hua_navite_system_tray
 repository: https://github.com/Matkurban/xue_hua_navite_system_tray
 issue_tracker: https://github.com/Matkurban/xue_hua_navite_system_tray/issues

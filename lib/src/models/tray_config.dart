@@ -88,8 +88,8 @@ class TrayConfig {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       if (icon != null) 'icon': icon!.toMap(),
-      if (title != null) 'title': title,
-      if (toolTip != null) 'toolTip': toolTip,
+      'title': ?title,
+      'toolTip': ?toolTip,
       'visible': visible,
       'menuTrigger': menuTrigger.name,
       'imagePosition': imagePosition.name,

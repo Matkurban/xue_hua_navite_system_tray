@@ -131,10 +131,10 @@ class MethodChannelXueHuaNaviteSystemTray
   }) async {
     await methodChannel.invokeMethod<void>('updateMenuItem', <String, dynamic>{
       'id': id,
-      if (label != null) 'label': label,
-      if (toolTip != null) 'toolTip': toolTip,
-      if (enabled != null) 'enabled': enabled,
-      if (checked != null) 'checked': checked,
+      'label': ?label,
+      'toolTip': ?toolTip,
+      'enabled': ?enabled,
+      'checked': ?checked,
       if (icon != null) 'icon': icon.toMap(),
     });
   }

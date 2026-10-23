@@ -92,7 +92,7 @@ void main() {
     expect(log.single.method, 'initSystemTray');
 
     // Simulate native menuItemClick callbacks from the host platform.
-    final ByteData? actionMessage = const StandardMethodCodec()
+    final ByteData actionMessage = const StandardMethodCodec()
         .encodeMethodCall(
           const MethodCall('onTrayEvent', <String, dynamic>{
             'type': 'menuItemClick',
@@ -108,7 +108,7 @@ void main() {
         );
     expect(actionTapped, isTrue);
 
-    final ByteData? checkMessage = const StandardMethodCodec().encodeMethodCall(
+    final ByteData checkMessage = const StandardMethodCodec().encodeMethodCall(
       const MethodCall('onTrayEvent', <String, dynamic>{
         'type': 'menuItemClick',
         'mouseButton': 'left',
