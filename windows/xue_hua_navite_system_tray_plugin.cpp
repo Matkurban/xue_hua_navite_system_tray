@@ -143,9 +143,9 @@ bool XueHuaNaviteSystemTrayPlugin::EnsureMessageWindow() {
   wc.lpszClassName = kMessageWindowClassName;
   RegisterClassExW(&wc);
 
-  message_hwnd_ = CreateWindowExW(0, kMessageWindowClassName,
-                                  L"XueHuaSystemTrayHiddenWindow", WS_POPUP, 0,
-                                  0, 0, 0, nullptr, nullptr, wc.hInstance, this);
+  message_hwnd_ = CreateWindowExW(
+      WS_EX_TOOLWINDOW, kMessageWindowClassName, L"XueHuaSystemTrayHiddenWindow",
+      WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, this);
   return message_hwnd_ != nullptr;
 }
 
@@ -172,6 +172,15 @@ LRESULT XueHuaNaviteSystemTrayPlugin::HandleWindowMessage(HWND hwnd,
                                                           UINT message,
                                                           WPARAM wparam,
                                                           LPARAM lparam) {
+  if (message == kHideMainWindowMessage) {
+    HideMainFlutterWindow();
+    return 0;
+  }
+  if (message == kShowMainWindowMessage) {
+    ShowMainFlutterWindow(wparam != 0);
+    return 0;
+  }
+
   if (message == kTrayCallbackMessage) {
     UINT event_msg = LOWORD(lparam);
     switch (event_msg) {
@@ -215,12 +224,53 @@ LRESULT XueHuaNaviteSystemTrayPlugin::HandleWindowMessage(HWND hwnd,
 HWND XueHuaNaviteSystemTrayPlugin::GetMainFlutterWindow() const {
   if (registrar_ != nullptr && registrar_->GetView() != nullptr) {
     HWND view_hwnd = registrar_->GetView()->GetNativeWindow();
-    if (view_hwnd != nullptr) {
+    if (view_hwnd != nullptr && IsWindow(view_hwnd)) {
       HWND root = GetAncestor(view_hwnd, GA_ROOT);
-      return root != nullptr ? root : view_hwnd;
+      HWND candidate = root != nullptr ? root : view_hwnd;
+      if (candidate != nullptr && IsWindow(candidate) &&
+          candidate != message_hwnd_) {
+        return candidate;
+      }
     }
   }
   return nullptr;
+}
+
+void XueHuaNaviteSystemTrayPlugin::HideMainFlutterWindow() {
+  HWND hwnd = GetMainFlutterWindow();
+  if (hwnd == nullptr || !IsWindow(hwnd)) {
+    return;
+  }
+  ShowWindow(hwnd, SW_HIDE);
+}
+
+void XueHuaNaviteSystemTrayPlugin::ShowMainFlutterWindow(bool focus) {
+  HWND hwnd = GetMainFlutterWindow();
+  if (hwnd == nullptr || !IsWindow(hwnd)) {
+    return;
+  }
+  if (IsIconic(hwnd)) {
+    ShowWindow(hwnd, SW_RESTORE);
+  } else {
+    ShowWindow(hwnd, SW_SHOW);
+  }
+  if (focus) {
+    HWND foreground = GetForegroundWindow();
+    DWORD foreground_tid = 0;
+    if (foreground != nullptr) {
+      foreground_tid = GetWindowThreadProcessId(foreground, nullptr);
+    }
+    DWORD target_tid = GetWindowThreadProcessId(hwnd, nullptr);
+    bool attached = false;
+    if (foreground_tid != 0 && target_tid != 0 && foreground_tid != target_tid) {
+      attached = AttachThreadInput(foreground_tid, target_tid, TRUE) == TRUE;
+    }
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    if (attached) {
+      AttachThreadInput(foreground_tid, target_tid, FALSE);
+    }
+  }
 }
 
 void XueHuaNaviteSystemTrayPlugin::HandleMethodCall(
@@ -289,24 +339,13 @@ void XueHuaNaviteSystemTrayPlugin::HandleMethodCall(
     result->Success();
   } else if (method == "showMainWindow") {
     bool focus = GetBoolOrDefault(args, "focus", true);
-    HWND hwnd = GetMainFlutterWindow();
-    if (hwnd != nullptr) {
-      if (IsIconic(hwnd)) {
-        ShowWindow(hwnd, SW_RESTORE);
-      } else {
-        ShowWindow(hwnd, SW_SHOW);
-      }
-      if (focus) {
-        SetForegroundWindow(hwnd);
-      }
-    }
+    // Reply first, then mutate visibility on this stack so Dart awaiters see the
+    // updated state, while still avoiding ShowWindow during reply encoding.
     result->Success();
+    ShowMainFlutterWindow(focus);
   } else if (method == "hideMainWindow") {
-    HWND hwnd = GetMainFlutterWindow();
-    if (hwnd != nullptr) {
-      ShowWindow(hwnd, SW_HIDE);
-    }
     result->Success();
+    HideMainFlutterWindow();
   } else if (method == "isMainWindowVisible") {
     HWND hwnd = GetMainFlutterWindow();
     bool visible =
