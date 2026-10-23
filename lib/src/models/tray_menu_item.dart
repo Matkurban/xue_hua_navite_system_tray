@@ -149,34 +149,31 @@ class TrayMenuItem {
        onChanged = null;
 
   /// Creates a horizontal separator divider item.
-  const TrayMenuItem.separator({
-    this.id = 'separator',
-  }) : type = TrayMenuItemType.separator,
-       label = '',
-       toolTip = null,
-       enabled = false,
-       checked = false,
-       groupId = null,
-       icon = null,
-       shortcut = null,
-       children = const <TrayMenuItem>[],
-       onTap = null,
-       onChanged = null;
+  const TrayMenuItem.separator({this.id = 'separator'})
+    : type = TrayMenuItemType.separator,
+      label = '',
+      toolTip = null,
+      enabled = false,
+      checked = false,
+      groupId = null,
+      icon = null,
+      shortcut = null,
+      children = const <TrayMenuItem>[],
+      onTap = null,
+      onChanged = null;
 
   /// Creates a non-interactive section header item.
-  const TrayMenuItem.header({
-    required this.id,
-    required this.label,
-  }) : type = TrayMenuItemType.header,
-       toolTip = null,
-       enabled = false,
-       checked = false,
-       groupId = null,
-       icon = null,
-       shortcut = null,
-       children = const <TrayMenuItem>[],
-       onTap = null,
-       onChanged = null;
+  const TrayMenuItem.header({required this.id, required this.label})
+    : type = TrayMenuItemType.header,
+      toolTip = null,
+      enabled = false,
+      checked = false,
+      groupId = null,
+      icon = null,
+      shortcut = null,
+      children = const <TrayMenuItem>[],
+      onTap = null,
+      onChanged = null;
 
   /// Unique identifier used to identify the menu item in events and dynamic updates.
   final String id;

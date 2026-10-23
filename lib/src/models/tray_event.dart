@@ -130,7 +130,9 @@ class TrayEvent {
       cursorX: (map['cursorX'] as num?)?.toDouble(),
       cursorY: (map['cursorY'] as num?)?.toDouble(),
       timestamp: map['timestamp'] != null
-          ? DateTime.fromMillisecondsSinceEpoch((map['timestamp'] as num).toInt())
+          ? DateTime.fromMillisecondsSinceEpoch(
+              (map['timestamp'] as num).toInt(),
+            )
           : DateTime.now(),
     );
   }

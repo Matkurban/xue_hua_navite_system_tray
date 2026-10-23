@@ -118,10 +118,7 @@ class TrayIconSource {
   }
 
   /// Creates a copy of this [TrayIconSource] with the given fields replaced.
-  TrayIconSource copyWith({
-    bool? isTemplate,
-    double? iconSize,
-  }) {
+  TrayIconSource copyWith({bool? isTemplate, double? iconSize}) {
     switch (type) {
       case TrayIconSourceType.asset:
         return TrayIconSource.asset(
