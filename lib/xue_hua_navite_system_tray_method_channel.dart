@@ -43,11 +43,19 @@ class MethodChannelXueHuaNaviteSystemTray
           event.menuItemId != null) {
         final TrayMenuItem? item = _registeredMenuItems[event.menuItemId!];
         if (item != null) {
-          if (item.type == TrayMenuItemType.checkbox) {
-            item.onChanged?.call(event.checked ?? !item.checked);
-          } else {
-            item.onTap?.call();
-          }
+          // Defer callbacks so hideMainWindow/showMainWindow (and other channel
+          // invokes) are never nested inside this inbound onTrayEvent handler.
+          // Nested platform-channel calls have caused process teardown on
+          // Windows when Minimize-to-Tray runs from a tray menu item.
+          final TrayMenuItem captured = item;
+          final bool? checked = event.checked;
+          scheduleMicrotask(() {
+            if (captured.type == TrayMenuItemType.checkbox) {
+              captured.onChanged?.call(checked ?? !captured.checked);
+            } else {
+              captured.onTap?.call();
+            }
+          });
         }
       }
       _eventController.add(event);

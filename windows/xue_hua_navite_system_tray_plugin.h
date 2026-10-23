@@ -57,6 +57,8 @@ class XueHuaNaviteSystemTrayPlugin : public flutter::Plugin {
 
  private:
   static constexpr UINT kTrayCallbackMessage = WM_APP + 0x241;
+  static constexpr UINT kHideMainWindowMessage = WM_APP + 0x242;
+  static constexpr UINT kShowMainWindowMessage = WM_APP + 0x243;
   static constexpr UINT kTrayIconId = 1001;
 
   static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT message,
@@ -67,6 +69,8 @@ class XueHuaNaviteSystemTrayPlugin : public flutter::Plugin {
 
   bool EnsureMessageWindow();
   HWND GetMainFlutterWindow() const;
+  void HideMainFlutterWindow();
+  void ShowMainFlutterWindow(bool focus);
 
   bool InitSystemTray(const flutter::EncodableMap &args);
   void SetIconFromMap(const flutter::EncodableMap &icon_map);
