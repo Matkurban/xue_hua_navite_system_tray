@@ -1,3 +1,8 @@
+## 1.0.2
+
+* Fixed Linux CMake / gtest build issues that blocked CMake 4.x builds.
+* Hardened Linux system tray integration tests and `notify-send` capability detection.
+
 ## 1.0.1
 
 * Fixed Windows CMake / gtest build issues that blocked Visual Studio 2026 builds.
