@@ -62,17 +62,25 @@ set(TEST_RUNNER "${PROJECT_NAME}_test")
 enable_testing()
 
 # Add the Google Test dependency.
+# Newer CMake removed compatibility with cmake_minimum_required < 3.5;
+# googletest releases before ~1.13 still declare old mins. Prefer a modern
+# googletest tag, and allow policy fallback if FetchContent ever reverts.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(FetchContent)
 FetchContent_Declare(
   googletest
-  URL https://github.com/google/googletest/archive/release-1.11.0.zip
+  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 # Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Disable install commands for gtest so it doesn't end up in the bundle.
 set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of googletest" FORCE)
-
+# FetchContent/googletest may pull GNUInstallDirs and overwrite the Flutter
+# app install prefix. Preserve it.
+set(_xh_nst_saved_install_prefix "${CMAKE_INSTALL_PREFIX}")
 FetchContent_MakeAvailable(googletest)
+set(CMAKE_INSTALL_PREFIX "${_xh_nst_saved_install_prefix}" CACHE PATH "..." FORCE)
 
 # The plugin's exported API is not very useful for unit testing, so build the
 # sources directly into the test binary rather than using the shared library.
