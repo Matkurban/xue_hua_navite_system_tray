@@ -174,6 +174,35 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
       ),
       const TrayMenuItem.separator(),
       TrayMenuItem.action(
+        id: 'asset_star_favorite',
+        label: 'Starred Favorites (Asset Icon)',
+        toolTip: 'Menu item using local Flutter asset image menu_star.png',
+        icon: const TrayIconSource.asset(
+          'assets/icons/menu_star.png',
+          isTemplate: false,
+          iconSize: 16.0,
+        ),
+        shortcut: const TrayMenuShortcut('f', meta: true),
+        onTap: () {
+          _appendLog('Clicked local asset menu item: Starred Favorites');
+        },
+      ),
+      TrayMenuItem.action(
+        id: 'asset_open_folder',
+        label: 'Open Workspace Folder (Asset Icon)',
+        toolTip: 'Menu item using local Flutter asset image menu_folder.png',
+        icon: const TrayIconSource.asset(
+          'assets/icons/menu_folder.png',
+          isTemplate: false,
+          iconSize: 16.0,
+        ),
+        shortcut: const TrayMenuShortcut('d', meta: true),
+        onTap: () {
+          _appendLog('Clicked local asset menu item: Open Workspace Folder');
+        },
+      ),
+      const TrayMenuItem.separator(),
+      TrayMenuItem.action(
         id: 'sync_now',
         label: 'Sync Now ($_syncCounter)',
         icon: Platform.isMacOS
@@ -567,7 +596,9 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
               ],
             ),
             const Divider(height: 24),
-            const Text('Switch Icon Source (System Symbol & In-Memory PNG):'),
+            const Text(
+              'Switch Icon Source (System Symbol, Local Asset & In-Memory PNG):',
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -579,6 +610,20 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
                   onPressed: () async {
                     await _tray.setIcon(_defaultPlatformIcon());
                     _appendLog('Switched to platform system icon');
+                  },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.image_outlined, size: 16),
+                  label: const Text('Local Asset Icon (tray_logo.png)'),
+                  onPressed: () async {
+                    await _tray.setIcon(
+                      const TrayIconSource.asset(
+                        'assets/icons/tray_logo.png',
+                        isTemplate: false,
+                        iconSize: 18.0,
+                      ),
+                    );
+                    _appendLog('Switched to local asset icon: tray_logo.png');
                   },
                 ),
                 ActionChip(

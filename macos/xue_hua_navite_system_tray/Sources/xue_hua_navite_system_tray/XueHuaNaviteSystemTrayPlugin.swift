@@ -11,9 +11,8 @@ import UserNotifications
 public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelegate {
   private let channel: FlutterMethodChannel
 
-  /// Strongly retained registrar so `registrar?.view?.window` remains valid
-  /// throughout the application lifecycle (`registry.registrar(forPlugin:)`
-  /// returns an autoreleased object that would otherwise be deallocated if weak).
+  /// Strongly retained registrar so `registrar?.view?.window` and asset lookup
+  /// remain valid throughout the application lifecycle.
   private var registrar: FlutterPluginRegistrar?
 
   /// Cached weak reference to the primary Flutter `NSWindow` so it can still be
@@ -338,65 +337,77 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     }
   }
 
-  /// Loads an `NSImage` from a serialized `TrayIconSource` dictionary and renders
-  /// it into a standardized 2x Retina `NSBitmapImageRep`-backed `NSImage`.
+  /// Loads an `NSImage` from a serialized `TrayIconSource` dictionary.
   ///
-  /// Why rasterize into an `NSBitmapImageRep`?
-  /// In macOS AppKit, `NSImage(systemSymbolName:)` returns a symbol proxy backed by
-  /// `_NSSymbolImageRep`. Mutating `.size` on a symbol image or passing a symbol image
-  /// across different `NSMenu` / `NSMenuItem` appearances can fail to render in
-  /// `NSMenuItem`'s image column. By rasterizing any source image (SF Symbol, asset,
-  /// file, or memory bytes) into a concrete 2x Retina `NSBitmapImageRep` of exact
-  /// `targetSize x targetSize` points and normalizing template pixels to black + alpha,
-  /// both `NSStatusBarButton` and `NSMenuItem` render the icon reliably on all macOS versions.
+  /// - For `system` SF Symbols: Applies `NSImage.SymbolConfiguration` directly
+  ///   without overwriting `.size` so AppKit preserves the vector symbol's
+  ///   aspect ratio and rendering metadata.
+  /// - For `asset`, `file`, and `bytes` bitmap images: Sets `.size` to
+  ///   `NSSize(width: targetSize, height: targetSize)` and `.isTemplate = isTemplate`.
   private func loadNSImage(from iconMap: [String: Any], defaultSize: Double) -> NSImage? {
     let type = iconMap["type"] as? String ?? "asset"
     let isTemplate = asBool(iconMap["isTemplate"], default: false)
     let targetSize = CGFloat(asDouble(iconMap["iconSize"], default: defaultSize))
 
-    var rawImage: NSImage?
-
     switch type {
     case "system":
-      if let symbolName = iconMap["systemName"] as? String, !symbolName.isEmpty {
-        if #available(macOS 11.0, *) {
-          if let symbol = resolveSystemSymbolImage(named: symbolName) {
-            let config = NSImage.SymbolConfiguration(
-              pointSize: max(12.0, targetSize - 2.0),
-              weight: .medium
-            )
-            rawImage = symbol.withSymbolConfiguration(config) ?? symbol
-          }
-        }
-        if rawImage == nil {
-          rawImage = NSImage(named: symbolName)
+      guard let symbolName = iconMap["systemName"] as? String, !symbolName.isEmpty else {
+        return nil
+      }
+      if #available(macOS 11.0, *) {
+        if let symbol = resolveSystemSymbolImage(named: symbolName) {
+          let config = NSImage.SymbolConfiguration(
+            pointSize: max(13.0, targetSize - 2.0),
+            weight: .regular
+          )
+          let configured = symbol.withSymbolConfiguration(config) ?? symbol
+          configured.isTemplate = isTemplate
+          return configured
         }
       }
+      if let namedImg = NSImage(named: symbolName)?.copy() as? NSImage {
+        namedImg.size = NSSize(width: targetSize, height: targetSize)
+        namedImg.isTemplate = isTemplate
+        return namedImg
+      }
+      return nil
 
     case "asset":
       if let assetPath = iconMap["path"] as? String,
-         let resolvedPath = resolveFlutterAssetPath(assetPath) {
-        rawImage = NSImage(contentsOfFile: resolvedPath)
+         let resolvedPath = resolveFlutterAssetPath(assetPath),
+         let image = NSImage(contentsOfFile: resolvedPath) {
+        image.size = NSSize(width: targetSize, height: targetSize)
+        image.isTemplate = isTemplate
+        return image
       }
+      return nil
 
     case "file":
-      if let filePath = iconMap["path"] as? String {
-        rawImage = NSImage(contentsOfFile: filePath)
+      if let filePath = iconMap["path"] as? String,
+         let image = NSImage(contentsOfFile: filePath) {
+        image.size = NSSize(width: targetSize, height: targetSize)
+        image.isTemplate = isTemplate
+        return image
       }
+      return nil
 
     case "bytes":
+      var rawData: Data?
       if let typedData = iconMap["bytes"] as? FlutterStandardTypedData {
-        rawImage = NSImage(data: typedData.data)
+        rawData = typedData.data
       } else if let data = iconMap["bytes"] as? Data {
-        rawImage = NSImage(data: data)
+        rawData = data
       }
+      if let data = rawData, let image = NSImage(data: data) {
+        image.size = NSSize(width: targetSize, height: targetSize)
+        image.isTemplate = isTemplate
+        return image
+      }
+      return nil
 
     default:
-      break
+      return nil
     }
-
-    guard let source = rawImage else { return nil }
-    return renderNormalizedNSImage(source, targetSize: targetSize, isTemplate: isTemplate)
   }
 
   @available(macOS 11.0, *)
@@ -422,80 +433,26 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     return nil
   }
 
-  /// Renders any `NSImage` (including SF Symbols) proportionally into a 2x Retina
-  /// `NSBitmapImageRep` of `targetSize x targetSize` points.
-  private func renderNormalizedNSImage(
-    _ source: NSImage,
-    targetSize: CGFloat,
-    isTemplate: Bool
-  ) -> NSImage {
-    let pixelDim = max(1, Int(targetSize * 2.0))
-    guard let bitmapRep = NSBitmapImageRep(
-      bitmapDataPlanes: nil,
-      pixelsWide: pixelDim,
-      pixelsHigh: pixelDim,
-      bitsPerSample: 8,
-      samplesPerPixel: 4,
-      hasAlpha: true,
-      isPlanar: false,
-      colorSpaceName: .deviceRGB,
-      bytesPerRow: 0,
-      bitsPerPixel: 0
-    ) else {
-      let copy = (source.copy() as? NSImage) ?? source
-      copy.size = NSSize(width: targetSize, height: targetSize)
-      copy.isTemplate = isTemplate
-      return copy
-    }
-
-    bitmapRep.size = NSSize(width: targetSize, height: targetSize)
-
-    NSGraphicsContext.saveGraphicsState()
-    if let context = NSGraphicsContext(bitmapImageRep: bitmapRep) {
-      NSGraphicsContext.current = context
-      context.imageInterpolation = .high
-
-      let srcSize = source.size
-      var drawRect = NSRect(x: 0, y: 0, width: targetSize, height: targetSize)
-      if srcSize.width > 0 && srcSize.height > 0 {
-        let scale = min(targetSize / srcSize.width, targetSize / srcSize.height)
-        let scaledW = srcSize.width * scale
-        let scaledH = srcSize.height * scale
-        drawRect = NSRect(
-          x: (targetSize - scaledW) / 2.0,
-          y: (targetSize - scaledH) / 2.0,
-          width: scaledW,
-          height: scaledH
-        )
-      }
-
-      source.draw(
-        in: drawRect,
-        from: .zero,
-        operation: .sourceOver,
-        fraction: 1.0
-      )
-
-      if isTemplate {
-        NSColor.black.set()
-        NSRect(x: 0, y: 0, width: targetSize, height: targetSize).fill(using: .sourceIn)
-      }
-    }
-    NSGraphicsContext.restoreGraphicsState()
-
-    let finalImage = NSImage(size: NSSize(width: targetSize, height: targetSize))
-    finalImage.addRepresentation(bitmapRep)
-    finalImage.isTemplate = isTemplate
-    return finalImage
-  }
-
   private func resolveFlutterAssetPath(_ assetPath: String) -> String? {
     let mainBundlePath = Bundle.main.bundlePath
-    let candidates = [
+    var candidates: [String] = []
+
+    if let registrar = registrar {
+      let lookupKey = registrar.lookupKey(forAsset: assetPath)
+      if let bundlePath = Bundle.main.path(forResource: lookupKey, ofType: nil) {
+        candidates.append(bundlePath)
+      }
+      candidates.append("\(mainBundlePath)/Contents/\(lookupKey)")
+      candidates.append("\(mainBundlePath)/Contents/Frameworks/App.framework/Resources/\(lookupKey)")
+    }
+
+    candidates.append(contentsOf: [
       "\(mainBundlePath)/Contents/Frameworks/App.framework/Resources/flutter_assets/\(assetPath)",
+      "\(mainBundlePath)/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/\(assetPath)",
       "\(mainBundlePath)/Contents/Resources/flutter_assets/\(assetPath)",
       assetPath
-    ]
+    ])
+
     for candidate in candidates {
       if FileManager.default.fileExists(atPath: candidate) {
         return candidate
@@ -505,6 +462,26 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   }
 
   // MARK: - Context Menu Construction & In-Place Updates
+
+  /// Ensures that a menu item's image is explicitly visible on macOS 26 / macOS 27+.
+  ///
+  /// Starting with applications linked against the macOS 26 / macOS 27 SDK
+  /// (`macosx27.0`), AppKit's `NSMenu` hides `NSMenuItem.image` (both SF Symbols
+  /// and bitmap/asset images) by default when `preferredImageVisibility` is left
+  /// at `.automatic`. Setting `preferredImageVisibility = .visible` (raw value `1`)
+  /// restores explicit icon rendering for every menu item configured with an icon.
+  private func ensureMenuItemImageVisible(_ item: NSMenuItem) {
+    #if compiler(>=6.3)
+    if #available(macOS 27.0, *) {
+      item.preferredImageVisibility = .visible
+      return
+    }
+    #endif
+    let selector = NSSelectorFromString("setPreferredImageVisibility:")
+    if item.responds(to: selector) {
+      item.setValue(1, forKey: "preferredImageVisibility")
+    }
+  }
 
   private func setContextMenu(args: [String: Any], result: @escaping FlutterResult) {
     let rawItems = asDictionaryArray(args["menuItems"])
@@ -565,6 +542,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
       if let iconMap = asDictionary(itemData["icon"]),
          let iconImage = loadNSImage(from: iconMap, defaultSize: 16.0) {
         nsItem.image = iconImage
+        ensureMenuItemImageVisible(nsItem)
       }
 
       if let shortcutMap = asDictionary(itemData["shortcut"]) {
@@ -638,6 +616,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     if let iconMap = asDictionary(args["icon"]),
        let image = loadNSImage(from: iconMap, defaultSize: 16.0) {
       item.image = image
+      ensureMenuItemImageVisible(item)
     }
 
     result(nil)

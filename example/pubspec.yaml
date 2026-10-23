@@ -21,3 +21,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/tray_logo.png
+    - assets/icons/menu_star.png
+    - assets/icons/menu_folder.png
