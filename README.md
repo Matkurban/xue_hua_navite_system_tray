@@ -199,6 +199,8 @@ debugPrint('Backend: ${caps.backendName}, inlineTitle: ${caps.supportsInlineTitl
 
 1. **macOS (`NSStatusItem`)**:
    - Use 18×18 pt (`@1x`) / 36×36 px (`@2x`) transparent PNG icons with `isTemplate: true` for monochrome status bar icons so macOS automatically inverts the icon color in Dark Mode and when the status bar button is highlighted.
+   - All `TrayIconSource` icons (including SF Symbols via `TrayIconSource.system`) are automatically rendered into normalized 2x Retina `NSBitmapImageRep` images so both `NSStatusBarButton` and `NSMenuItem` display icons reliably across all macOS versions.
+   - When `hideMainWindow()` is called, the plugin automatically retains the primary `FlutterViewController` window (`isReleasedWhenClosed = false`) and guards `applicationShouldTerminateAfterLastWindowClosed` on `NSApp.delegate` so ordering out the last window does not cause macOS to terminate the app. You can also return `false` from `applicationShouldTerminateAfterLastWindowClosed` in `macos/Runner/AppDelegate.swift`.
    - `showNotification` uses `UNUserNotificationCenter`, which requires the app to run inside a signed/bundled `.app` with a valid `CFBundleIdentifier` and user notification permission.
 2. **Windows (`Shell_NotifyIconW`)**:
    - You do **not** need to convert PNG icons to `.ico` manually — the Windows plugin initializes GDI+ (`Gdiplus::Bitmap`) to convert PNG, BMP, JPEG, and raw `Uint8List` bytes into native `HICON` and 32-bit ARGB menu `HBITMAP` handles automatically.

@@ -18,7 +18,7 @@ Provide idiomatic integration patterns, platform difference handling, and best p
 ## Guidelines
 
 * Always access the plugin via `XueHuaNaviteSystemTray.instance` and call `initSystemTray(TrayConfig(...))` after `WidgetsFlutterBinding.ensureInitialized()`.
-* Prefer `isTemplate: true` on `TrayIconSource` for monochrome icons on macOS so `NSStatusItem` automatically adapts to light and dark menu bars.
+* Prefer `isTemplate: true` on `TrayIconSource` for monochrome icons on macOS so `NSStatusItem` and `NSMenuItem` automatically adapt to light and dark appearances.
 * Use `updateMenuItem(id, ...)` instead of rebuilding the entire menu via `setContextMenu(...)` when updating a single item's label, enabled state, or checked state at high frequency.
 * Subscribe to `XueHuaNaviteSystemTray.instance.events` in `initState()` and cancel the `StreamSubscription<TrayEvent>` in `dispose()`, or attach `onTap` / `onChanged` callbacks directly to `TrayMenuItem` instances.
 * Inspect `getCapabilities()` when designing UI that relies on platform-specific features such as inline status bar text (`supportsInlineTitle`), icon screen bounds (`supportsIconBounds`), or macOS Dock visibility toggling (`supportsDockVisibilityToggle`).
@@ -26,7 +26,9 @@ Provide idiomatic integration patterns, platform difference handling, and best p
 
 ## Platform Gotchas
 
-* **macOS (`NSStatusItem`)**: Supports inline `title` text next to the icon, `isTemplate` adaptive monochrome icons, SF Symbols via `TrayIconSource.system('sparkles')`, and hiding the Dock icon via `setDockIconVisible(false)`.
+* **macOS (`NSStatusItem`)**:
+  - Supports inline `title` text next to the icon, `isTemplate` adaptive monochrome icons, SF Symbols via `TrayIconSource.system('sparkles')`, and hiding the Dock icon via `setDockIconVisible(false)`.
+  - In `macos/Runner/AppDelegate.swift`, return `false` from `applicationShouldTerminateAfterLastWindowClosed(_:)` when using minimize-to-tray workflows (the plugin also installs a runtime guard on `NSApp.delegate` while the tray is active so `hideMainWindow()` does not terminate the app).
 * **Windows (`Shell_NotifyIconW`)**: Taskbar tray icons do not render inline text next to the icon (`supportsInlineTitle` is `false`); `setTitle` is used as a fallback tooltip when `toolTip` is empty. Both `.ico` and `.png`/`.bmp` assets or raw `Uint8List` bytes are decoded automatically via GDI+.
 * **Linux (`AyatanaAppIndicator3` / `AppIndicator3` / `GtkStatusIcon`)**: Dynamically loads `libayatana-appindicator3.so.1` or `libappindicator3.so.1` at runtime via `dlopen` and falls back to `GtkStatusIcon` if neither is installed. Under the DBus `StatusNotifierItem` (`AppIndicator`) protocol, primary clicks on the tray icon are managed by the desktop panel to open the bound `GtkMenu`, and icon screen coordinates (`getBounds()`) return `null`.
 

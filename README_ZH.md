@@ -199,6 +199,8 @@ debugPrint('当前原生后端: ${caps.backendName}, 是否支持内联标题: $
 
 1. **macOS (`NSStatusItem`)**：
    - 建议使用 18×18 pt (`@1x`) / 36×36 px (`@2x`) 的透明背景单色 PNG 图标并开启 `isTemplate: true`，系统会自动根据浅色/深色模式反色。
+   - 所有 `TrayIconSource` 图标（包括 `TrayIconSource.system` 的 SF Symbols）在原生层均会自动归一化渲染为 2x Retina `NSBitmapImageRep` 位图表示，确保在状态栏按钮 (`NSStatusBarButton`) 与菜单项 (`NSMenuItem`) 中都能稳定显示。
+   - 调用 `hideMainWindow()` 隐藏主窗口时，插件会自动缓存 `FlutterViewController` 宿主窗口（设置 `isReleasedWhenClosed = false`）并拦截 `NSApp.delegate` 的 `applicationShouldTerminateAfterLastWindowClosed(_:)` 返回 `false`，防止 macOS 因最后一个可见窗口隐藏而自动退出应用；同时建议在宿主工程 `macos/Runner/AppDelegate.swift` 中将 `applicationShouldTerminateAfterLastWindowClosed` 设为返回 `false`。
    - `showNotification` 使用 `UNUserNotificationCenter`，要求宿主应用在具有合法 `CFBundleIdentifier` 的 `.app` 包中运行并授予通知权限。
 2. **Windows (`Shell_NotifyIconW`)**：
    - **无需手动将 PNG 转为 `.ico`**：Windows 端内置 GDI+ 解码器，可直接加载 PNG、BMP、JPEG、ICO 以及内存 `Uint8List` 字节流。

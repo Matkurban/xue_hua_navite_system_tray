@@ -151,6 +151,8 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
         toolTip: 'Bring the main application window to front',
         icon: Platform.isMacOS
             ? const TrayIconSource.system('macwindow', isTemplate: true)
+            : Platform.isWindows
+            ? const TrayIconSource.system('application')
             : null,
         shortcut: const TrayMenuShortcut('o', meta: true),
         onTap: () async {
@@ -161,6 +163,9 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
       TrayMenuItem.action(
         id: 'hide_window',
         label: 'Minimize to System Tray',
+        icon: Platform.isMacOS
+            ? const TrayIconSource.system('eye.slash', isTemplate: true)
+            : null,
         shortcut: const TrayMenuShortcut('h', meta: true),
         onTap: () async {
           await _tray.hideMainWindow();
@@ -172,10 +177,9 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
         id: 'sync_now',
         label: 'Sync Now ($_syncCounter)',
         icon: Platform.isMacOS
-            ? const TrayIconSource.system(
-                'arrow.triangle.2.circlepath',
-                isTemplate: true,
-              )
+            ? const TrayIconSource.system('arrow.clockwise', isTemplate: true)
+            : Platform.isWindows
+            ? const TrayIconSource.system('info')
             : null,
         shortcut: const TrayMenuShortcut('r', meta: true),
         onTap: _triggerManualSync,
@@ -225,12 +229,22 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
       TrayMenuItem.action(
         id: 'send_notification',
         label: 'Send Test Notification',
+        icon: Platform.isMacOS
+            ? const TrayIconSource.system('bell', isTemplate: true)
+            : Platform.isWindows
+            ? const TrayIconSource.system('warning')
+            : null,
         onTap: _sendTrayNotification,
       ),
       const TrayMenuItem.separator(),
       TrayMenuItem.action(
         id: 'destroy_tray',
         label: 'Remove System Tray Icon',
+        icon: Platform.isMacOS
+            ? const TrayIconSource.system('trash', isTemplate: true)
+            : Platform.isWindows
+            ? const TrayIconSource.system('error')
+            : null,
         shortcut: const TrayMenuShortcut('q', meta: true, shift: true),
         onTap: _destroyTray,
       ),

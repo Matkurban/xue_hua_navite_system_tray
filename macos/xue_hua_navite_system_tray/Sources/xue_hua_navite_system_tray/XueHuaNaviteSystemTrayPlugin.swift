@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import ObjectiveC.runtime
 import UserNotifications
 
 /// Native macOS implementation of the `xue_hua_navite_system_tray` plugin.
@@ -9,7 +10,21 @@ import UserNotifications
 /// for Dock icon control, and `UNUserNotificationCenter` for notifications.
 public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelegate {
   private let channel: FlutterMethodChannel
-  private weak var registrar: FlutterPluginRegistrar?
+
+  /// Strongly retained registrar so `registrar?.view?.window` remains valid
+  /// throughout the application lifecycle (`registry.registrar(forPlugin:)`
+  /// returns an autoreleased object that would otherwise be deallocated if weak).
+  private var registrar: FlutterPluginRegistrar?
+
+  /// Cached weak reference to the primary Flutter `NSWindow` so it can still be
+  /// located and restored after `window.orderOut(nil)` hides it.
+  private weak var cachedMainWindow: NSWindow?
+
+  /// Tracks whether the system tray is active or the main window was hidden to
+  /// the tray, preventing `applicationShouldTerminateAfterLastWindowClosed`
+  /// from unexpectedly quitting the app when `hideMainWindow()` is called.
+  private static var shouldPreventAppTerminationOnWindowHide: Bool = false
+  private static var didInstallAppDelegateTerminationGuard: Bool = false
 
   private var statusItem: NSStatusItem?
   private var contextMenu: NSMenu?
@@ -27,6 +42,10 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     self.channel = channel
     self.registrar = registrar
     super.init()
+    DispatchQueue.main.async { [weak self] in
+      _ = self?.mainAppWindow()
+      Self.installAppDelegateTerminationGuardIfNeeded()
+    }
   }
 
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -39,7 +58,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    let args = call.arguments as? [String: Any] ?? [:]
+    let args = asDictionary(call.arguments) ?? [:]
 
     switch call.method {
     case "initSystemTray":
@@ -81,9 +100,113 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     }
   }
 
+  // MARK: - Safe Objective-C / Swift Collection Bridging
+
+  private func asDictionary(_ value: Any?) -> [String: Any]? {
+    if let dict = value as? [String: Any] {
+      return dict
+    }
+    if let nsDict = value as? NSDictionary {
+      var result: [String: Any] = [:]
+      for (key, val) in nsDict {
+        if let keyStr = key as? String, !(val is NSNull) {
+          result[keyStr] = val
+        }
+      }
+      return result
+    }
+    return nil
+  }
+
+  private func asDictionaryArray(_ value: Any?) -> [[String: Any]] {
+    if let array = value as? [[String: Any]] {
+      return array
+    }
+    if let nsArray = value as? NSArray {
+      return nsArray.compactMap { asDictionary($0) }
+    }
+    return []
+  }
+
+  private func asBool(_ value: Any?, default defaultValue: Bool) -> Bool {
+    if let b = value as? Bool {
+      return b
+    }
+    if let num = value as? NSNumber {
+      return num.boolValue
+    }
+    return defaultValue
+  }
+
+  private func asDouble(_ value: Any?, default defaultValue: Double) -> Double {
+    if let d = value as? Double {
+      return d
+    }
+    if let num = value as? NSNumber {
+      return num.doubleValue
+    }
+    return defaultValue
+  }
+
+  // MARK: - AppDelegate Termination Guard for Minimize-to-Tray
+
+  /// Installs a runtime guard on `NSApp.delegate` so that ordering out the last
+  /// window via `hideMainWindow()` does not trigger AppKit's
+  /// `applicationShouldTerminateAfterLastWindowClosed` auto-exit behavior.
+  private static func installAppDelegateTerminationGuardIfNeeded() {
+    guard !didInstallAppDelegateTerminationGuard,
+          let delegate = NSApp.delegate else { return }
+
+    let delegateClass: AnyClass = object_getClass(delegate)!
+    let originalSelector = #selector(NSApplicationDelegate.applicationShouldTerminateAfterLastWindowClosed(_:))
+    let swizzledSelector = #selector(XueHuaNaviteSystemTrayPlugin.xueHua_applicationShouldTerminateAfterLastWindowClosed(_:))
+
+    guard let swizzledMethod = class_getInstanceMethod(
+      XueHuaNaviteSystemTrayPlugin.self,
+      swizzledSelector
+    ) else { return }
+
+    if let originalMethod = class_getInstanceMethod(delegateClass, originalSelector) {
+      let didAdd = class_addMethod(
+        delegateClass,
+        swizzledSelector,
+        method_getImplementation(swizzledMethod),
+        method_getTypeEncoding(swizzledMethod)
+      )
+      if didAdd, let newSwizzledMethod = class_getInstanceMethod(delegateClass, swizzledSelector) {
+        method_exchangeImplementations(originalMethod, newSwizzledMethod)
+      }
+    } else {
+      class_addMethod(
+        delegateClass,
+        originalSelector,
+        method_getImplementation(swizzledMethod),
+        method_getTypeEncoding(swizzledMethod)
+      )
+    }
+
+    didInstallAppDelegateTerminationGuard = true
+  }
+
+  @objc private func xueHua_applicationShouldTerminateAfterLastWindowClosed(
+    _ sender: NSApplication
+  ) -> Bool {
+    if XueHuaNaviteSystemTrayPlugin.shouldPreventAppTerminationOnWindowHide {
+      return false
+    }
+    if responds(to: #selector(XueHuaNaviteSystemTrayPlugin.xueHua_applicationShouldTerminateAfterLastWindowClosed(_:))) {
+      return self.xueHua_applicationShouldTerminateAfterLastWindowClosed(sender)
+    }
+    return false
+  }
+
   // MARK: - System Tray Lifecycle
 
   private func ensureStatusItem() -> NSStatusItem {
+    Self.installAppDelegateTerminationGuardIfNeeded()
+    Self.shouldPreventAppTerminationOnWindowHide = true
+    _ = mainAppWindow()
+
     if let existing = statusItem {
       return existing
     }
@@ -107,7 +230,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
       imagePosition = pos
     }
 
-    if let iconMap = args["icon"] as? [String: Any] {
+    if let iconMap = asDictionary(args["icon"]) {
       applyIcon(to: item, iconMap: iconMap)
     }
 
@@ -123,12 +246,12 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
       item.button?.toolTip = toolTip.isEmpty ? nil : toolTip
     }
 
-    if let visible = args["visible"] as? Bool {
-      isTrayVisible = visible
-      item.isVisible = visible
-    }
+    let visible = asBool(args["visible"], default: true)
+    isTrayVisible = visible
+    item.isVisible = visible
 
-    if let rawItems = args["menuItems"] as? [[String: Any]] {
+    let rawItems = asDictionaryArray(args["menuItems"])
+    if !rawItems.isEmpty || args["menuItems"] != nil {
       rebuildContextMenu(from: rawItems)
     }
 
@@ -171,13 +294,14 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   }
 
   private func setVisible(args: [String: Any], result: @escaping FlutterResult) {
-    let visible = args["visible"] as? Bool ?? true
+    let visible = asBool(args["visible"], default: true)
     isTrayVisible = visible
     statusItem?.isVisible = visible
     result(nil)
   }
 
   private func destroyTray(result: @escaping FlutterResult) {
+    Self.shouldPreventAppTerminationOnWindowHide = false
     if let item = statusItem {
       NSStatusBar.system.removeStatusItem(item)
       statusItem = nil
@@ -208,52 +332,161 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   }
 
   private func applyIcon(to item: NSStatusItem, iconMap: [String: Any]) {
-    let defaultSize = iconMap["iconSize"] as? Double ?? 18.0
+    let defaultSize = asDouble(iconMap["iconSize"], default: 18.0)
     if let image = loadNSImage(from: iconMap, defaultSize: defaultSize) {
       item.button?.image = image
     }
   }
 
+  /// Loads an `NSImage` from a serialized `TrayIconSource` dictionary and renders
+  /// it into a standardized 2x Retina `NSBitmapImageRep`-backed `NSImage`.
+  ///
+  /// Why rasterize into an `NSBitmapImageRep`?
+  /// In macOS AppKit, `NSImage(systemSymbolName:)` returns a symbol proxy backed by
+  /// `_NSSymbolImageRep`. Mutating `.size` on a symbol image or passing a symbol image
+  /// across different `NSMenu` / `NSMenuItem` appearances can fail to render in
+  /// `NSMenuItem`'s image column. By rasterizing any source image (SF Symbol, asset,
+  /// file, or memory bytes) into a concrete 2x Retina `NSBitmapImageRep` of exact
+  /// `targetSize x targetSize` points and normalizing template pixels to black + alpha,
+  /// both `NSStatusBarButton` and `NSMenuItem` render the icon reliably on all macOS versions.
   private func loadNSImage(from iconMap: [String: Any], defaultSize: Double) -> NSImage? {
     let type = iconMap["type"] as? String ?? "asset"
-    let isTemplate = iconMap["isTemplate"] as? Bool ?? false
-    let targetSize = CGFloat(iconMap["iconSize"] as? Double ?? defaultSize)
+    let isTemplate = asBool(iconMap["isTemplate"], default: false)
+    let targetSize = CGFloat(asDouble(iconMap["iconSize"], default: defaultSize))
 
-    var loadedImage: NSImage?
+    var rawImage: NSImage?
 
     switch type {
+    case "system":
+      if let symbolName = iconMap["systemName"] as? String, !symbolName.isEmpty {
+        if #available(macOS 11.0, *) {
+          if let symbol = resolveSystemSymbolImage(named: symbolName) {
+            let config = NSImage.SymbolConfiguration(
+              pointSize: max(12.0, targetSize - 2.0),
+              weight: .medium
+            )
+            rawImage = symbol.withSymbolConfiguration(config) ?? symbol
+          }
+        }
+        if rawImage == nil {
+          rawImage = NSImage(named: symbolName)
+        }
+      }
+
     case "asset":
       if let assetPath = iconMap["path"] as? String,
          let resolvedPath = resolveFlutterAssetPath(assetPath) {
-        loadedImage = NSImage(contentsOfFile: resolvedPath)
+        rawImage = NSImage(contentsOfFile: resolvedPath)
       }
+
     case "file":
       if let filePath = iconMap["path"] as? String {
-        loadedImage = NSImage(contentsOfFile: filePath)
+        rawImage = NSImage(contentsOfFile: filePath)
       }
+
     case "bytes":
       if let typedData = iconMap["bytes"] as? FlutterStandardTypedData {
-        loadedImage = NSImage(data: typedData.data)
+        rawImage = NSImage(data: typedData.data)
+      } else if let data = iconMap["bytes"] as? Data {
+        rawImage = NSImage(data: data)
       }
-    case "system":
-      if let symbolName = iconMap["systemName"] as? String {
-        if #available(macOS 11.0, *) {
-          let config = NSImage.SymbolConfiguration(pointSize: targetSize - 2, weight: .regular)
-          loadedImage = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
-        }
-        if loadedImage == nil {
-          loadedImage = NSImage(named: symbolName)
-        }
-      }
+
     default:
       break
     }
 
-    guard let image = loadedImage else { return nil }
-    image.size = NSSize(width: targetSize, height: targetSize)
-    image.isTemplate = isTemplate
-    return image
+    guard let source = rawImage else { return nil }
+    return renderNormalizedNSImage(source, targetSize: targetSize, isTemplate: isTemplate)
+  }
+
+  @available(macOS 11.0, *)
+  private func resolveSystemSymbolImage(named symbolName: String) -> NSImage? {
+    if let direct = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+      return direct
+    }
+    let fallbacks: [String: [String]] = [
+      "arrow.triangle.2.circlepath": ["arrow.clockwise", "arrow.2.circlepath"],
+      "macwindow": ["window.ceiling", "uiwindow.split.2x1", "rectangle"],
+      "speedometer": ["gauge", "dial.medium", "slider.horizontal.3"],
+      "eye.slash": ["eye", "minus.square"],
+      "bell": ["bell.fill", "exclamationmark.bubble"],
+      "trash": ["xmark.circle", "minus.circle"]
+    ]
+    if let candidates = fallbacks[symbolName] {
+      for candidate in candidates {
+        if let img = NSImage(systemSymbolName: candidate, accessibilityDescription: nil) {
+          return img
+        }
+      }
+    }
+    return nil
+  }
+
+  /// Renders any `NSImage` (including SF Symbols) proportionally into a 2x Retina
+  /// `NSBitmapImageRep` of `targetSize x targetSize` points.
+  private func renderNormalizedNSImage(
+    _ source: NSImage,
+    targetSize: CGFloat,
+    isTemplate: Bool
+  ) -> NSImage {
+    let pixelDim = max(1, Int(targetSize * 2.0))
+    guard let bitmapRep = NSBitmapImageRep(
+      bitmapDataPlanes: nil,
+      pixelsWide: pixelDim,
+      pixelsHigh: pixelDim,
+      bitsPerSample: 8,
+      samplesPerPixel: 4,
+      hasAlpha: true,
+      isPlanar: false,
+      colorSpaceName: .deviceRGB,
+      bytesPerRow: 0,
+      bitsPerPixel: 0
+    ) else {
+      let copy = (source.copy() as? NSImage) ?? source
+      copy.size = NSSize(width: targetSize, height: targetSize)
+      copy.isTemplate = isTemplate
+      return copy
+    }
+
+    bitmapRep.size = NSSize(width: targetSize, height: targetSize)
+
+    NSGraphicsContext.saveGraphicsState()
+    if let context = NSGraphicsContext(bitmapImageRep: bitmapRep) {
+      NSGraphicsContext.current = context
+      context.imageInterpolation = .high
+
+      let srcSize = source.size
+      var drawRect = NSRect(x: 0, y: 0, width: targetSize, height: targetSize)
+      if srcSize.width > 0 && srcSize.height > 0 {
+        let scale = min(targetSize / srcSize.width, targetSize / srcSize.height)
+        let scaledW = srcSize.width * scale
+        let scaledH = srcSize.height * scale
+        drawRect = NSRect(
+          x: (targetSize - scaledW) / 2.0,
+          y: (targetSize - scaledH) / 2.0,
+          width: scaledW,
+          height: scaledH
+        )
+      }
+
+      source.draw(
+        in: drawRect,
+        from: .zero,
+        operation: .sourceOver,
+        fraction: 1.0
+      )
+
+      if isTemplate {
+        NSColor.black.set()
+        NSRect(x: 0, y: 0, width: targetSize, height: targetSize).fill(using: .sourceIn)
+      }
+    }
+    NSGraphicsContext.restoreGraphicsState()
+
+    let finalImage = NSImage(size: NSSize(width: targetSize, height: targetSize))
+    finalImage.addRepresentation(bitmapRep)
+    finalImage.isTemplate = isTemplate
+    return finalImage
   }
 
   private func resolveFlutterAssetPath(_ assetPath: String) -> String? {
@@ -274,7 +507,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   // MARK: - Context Menu Construction & In-Place Updates
 
   private func setContextMenu(args: [String: Any], result: @escaping FlutterResult) {
-    let rawItems = args["menuItems"] as? [[String: Any]] ?? []
+    let rawItems = asDictionaryArray(args["menuItems"])
     rebuildContextMenu(from: rawItems)
     result(nil)
   }
@@ -290,6 +523,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   private func buildNSMenu(from items: [[String: Any]]) -> NSMenu {
     let menu = NSMenu()
     menu.autoenablesItems = false
+    menu.showsStateColumn = true
 
     for itemData in items {
       let type = itemData["type"] as? String ?? "action"
@@ -322,28 +556,28 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
 
       let nsItem = NSMenuItem(title: label, action: nil, keyEquivalent: "")
       nsItem.representedObject = id
-      nsItem.isEnabled = itemData["enabled"] as? Bool ?? true
+      nsItem.isEnabled = asBool(itemData["enabled"], default: true)
 
       if let toolTip = itemData["toolTip"] as? String, !toolTip.isEmpty {
         nsItem.toolTip = toolTip
       }
 
-      if let iconMap = itemData["icon"] as? [String: Any],
+      if let iconMap = asDictionary(itemData["icon"]),
          let iconImage = loadNSImage(from: iconMap, defaultSize: 16.0) {
         nsItem.image = iconImage
       }
 
-      if let shortcutMap = itemData["shortcut"] as? [String: Any] {
+      if let shortcutMap = asDictionary(itemData["shortcut"]) {
         applyShortcut(shortcutMap, to: nsItem)
       }
 
       if type == "checkbox" || type == "radio" {
-        let checked = itemData["checked"] as? Bool ?? false
+        let checked = asBool(itemData["checked"], default: false)
         nsItem.state = checked ? .on : .off
       }
 
       if type == "submenu" {
-        let childrenData = itemData["children"] as? [[String: Any]] ?? []
+        let childrenData = asDictionaryArray(itemData["children"])
         let subMenu = buildNSMenu(from: childrenData)
         nsItem.submenu = subMenu
       } else {
@@ -365,16 +599,16 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     item.keyEquivalent = key
 
     var modifiers: NSEvent.ModifierFlags = []
-    if shortcutMap["meta"] as? Bool == true {
+    if asBool(shortcutMap["meta"], default: false) {
       modifiers.insert(.command)
     }
-    if shortcutMap["control"] as? Bool == true {
+    if asBool(shortcutMap["control"], default: false) {
       modifiers.insert(.control)
     }
-    if shortcutMap["alt"] as? Bool == true {
+    if asBool(shortcutMap["alt"], default: false) {
       modifiers.insert(.option)
     }
-    if shortcutMap["shift"] as? Bool == true {
+    if asBool(shortcutMap["shift"], default: false) {
       modifiers.insert(.shift)
     }
     item.keyEquivalentModifierMask = modifiers
@@ -393,14 +627,15 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
     if let toolTip = args["toolTip"] as? String {
       item.toolTip = toolTip.isEmpty ? nil : toolTip
     }
-    if let enabled = args["enabled"] as? Bool {
-      item.isEnabled = enabled
+    if args["enabled"] != nil {
+      item.isEnabled = asBool(args["enabled"], default: item.isEnabled)
     }
-    if let checked = args["checked"] as? Bool {
+    if args["checked"] != nil {
+      let checked = asBool(args["checked"], default: item.state == .on)
       item.state = checked ? .on : .off
       menuItemMeta[id]?["checked"] = checked
     }
-    if let iconMap = args["icon"] as? [String: Any],
+    if let iconMap = asDictionary(args["icon"]),
        let image = loadNSImage(from: iconMap, defaultSize: 16.0) {
       item.image = image
     }
@@ -545,7 +780,7 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   private func showNotification(args: [String: Any], result: @escaping FlutterResult) {
     let title = args["title"] as? String ?? ""
     let message = args["message"] as? String ?? ""
-    let playSound = args["playSound"] as? Bool ?? true
+    let playSound = asBool(args["playSound"], default: true)
 
     guard Bundle.main.bundleIdentifier != nil else {
       result(false)
@@ -576,42 +811,87 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
   // MARK: - Window & Dock Management
 
   private func setDockIconVisible(args: [String: Any], result: @escaping FlutterResult) {
-    let visible = args["visible"] as? Bool ?? true
-    let policy: NSApplication.ActivationPolicy = visible ? .regular : .accessory
-    NSApp.setActivationPolicy(policy)
-    if visible {
-      NSApp.activate(ignoringOtherApps: true)
+    let visible = asBool(args["visible"], default: true)
+    Self.installAppDelegateTerminationGuardIfNeeded()
+    Self.shouldPreventAppTerminationOnWindowHide = true
+
+    DispatchQueue.main.async {
+      let policy: NSApplication.ActivationPolicy = visible ? .regular : .accessory
+      NSApp.setActivationPolicy(policy)
+      if visible {
+        NSApp.activate(ignoringOtherApps: true)
+      }
+      result(nil)
     }
-    result(nil)
   }
 
+  /// Resolves and caches the primary Flutter `NSWindow`, carefully excluding
+  /// internal AppKit status bar, menu, and popup windows.
   private func mainAppWindow() -> NSWindow? {
+    if let cached = cachedMainWindow {
+      return cached
+    }
     if let viewWindow = registrar?.view?.window {
+      viewWindow.isReleasedWhenClosed = false
+      cachedMainWindow = viewWindow
       return viewWindow
     }
-    return NSApp.windows.first { window in
+    if let flutterWindow = NSApp.windows.first(where: { window in
+      if window.contentViewController is FlutterViewController {
+        return true
+      }
       let className = NSStringFromClass(type(of: window))
-      return !className.contains("NSStatusBar") && !className.contains("NSPopup")
+      return className.contains("MainFlutterWindow") || className.contains("FlutterWindow")
+    }) {
+      flutterWindow.isReleasedWhenClosed = false
+      cachedMainWindow = flutterWindow
+      return flutterWindow
     }
+    if let normalWindow = NSApp.windows.first(where: { window in
+      let className = NSStringFromClass(type(of: window))
+      let isSystemPopup = className.contains("NSStatusBar")
+        || className.contains("NSPopup")
+        || className.contains("NSMenu")
+        || className.contains("NSCarbon")
+        || className.contains("TUINS")
+      return !isSystemPopup && window.canBecomeMain
+    }) {
+      normalWindow.isReleasedWhenClosed = false
+      cachedMainWindow = normalWindow
+      return normalWindow
+    }
+    return nil
   }
 
   private func showMainWindow(args: [String: Any], result: @escaping FlutterResult) {
-    let focus = args["focus"] as? Bool ?? true
-    if let window = mainAppWindow() {
-      if window.isMiniaturized {
-        window.deminiaturize(nil)
+    let focus = asBool(args["focus"], default: true)
+    DispatchQueue.main.async { [weak self] in
+      if let window = self?.mainAppWindow() {
+        window.isReleasedWhenClosed = false
+        if window.isMiniaturized {
+          window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        if focus {
+          NSApp.activate(ignoringOtherApps: true)
+        }
       }
-      window.makeKeyAndOrderFront(nil)
-      if focus {
-        NSApp.activate(ignoringOtherApps: true)
-      }
+      result(nil)
     }
-    result(nil)
   }
 
   private func hideMainWindow(result: @escaping FlutterResult) {
-    mainAppWindow()?.orderOut(nil)
-    result(nil)
+    Self.installAppDelegateTerminationGuardIfNeeded()
+    Self.shouldPreventAppTerminationOnWindowHide = true
+
+    DispatchQueue.main.async { [weak self] in
+      if let window = self?.mainAppWindow() {
+        window.isReleasedWhenClosed = false
+        window.orderOut(nil)
+      }
+      result(nil)
+    }
   }
 
   private func isMainWindowVisible(result: @escaping FlutterResult) {
