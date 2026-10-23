@@ -152,6 +152,8 @@ class MockXueHuaNaviteSystemTrayPlatform
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final XueHuaNaviteSystemTrayPlatform initialPlatform =
       XueHuaNaviteSystemTrayPlatform.instance;
 
