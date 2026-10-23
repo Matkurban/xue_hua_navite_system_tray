@@ -514,6 +514,11 @@ HICON XueHuaNaviteSystemTrayPlugin::LoadHIconFromMap(
     } else if (sys_name == "shield") {
       resource_id = IDI_SHIELD;
     }
+    HICON sized = static_cast<HICON>(LoadImageW(
+        nullptr, resource_id, IMAGE_ICON, target_size, target_size, 0));
+    if (sized != nullptr) {
+      return sized;
+    }
     return CopyIcon(LoadIconW(nullptr, resource_id));
   }
 
@@ -530,6 +535,25 @@ HICON XueHuaNaviteSystemTrayPlugin::LoadHIconFromMap(
               Gdiplus::Bitmap::FromStream(stream));
           stream->Release();
           if (bmp && bmp->GetLastStatus() == Gdiplus::Ok) {
+            if (target_size > 0 &&
+                (static_cast<int>(bmp->GetWidth()) != target_size ||
+                 static_cast<int>(bmp->GetHeight()) != target_size)) {
+              std::unique_ptr<Gdiplus::Bitmap> scaled(
+                  new Gdiplus::Bitmap(target_size, target_size,
+                                      PixelFormat32bppPARGB));
+              if (scaled && scaled->GetLastStatus() == Gdiplus::Ok) {
+                Gdiplus::Graphics graphics(scaled.get());
+                graphics.SetInterpolationMode(
+                    Gdiplus::InterpolationModeHighQualityBicubic);
+                graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+                graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+                graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+                graphics.DrawImage(bmp.get(), 0, 0, target_size, target_size);
+                HICON hicon = nullptr;
+                scaled->GetHICON(&hicon);
+                return hicon;
+              }
+            }
             HICON hicon = nullptr;
             bmp->GetHICON(&hicon);
             return hicon;
@@ -559,6 +583,25 @@ HICON XueHuaNaviteSystemTrayPlugin::LoadHIconFromMap(
   std::unique_ptr<Gdiplus::Bitmap> bmp(
       Gdiplus::Bitmap::FromFile(file_path.c_str()));
   if (bmp && bmp->GetLastStatus() == Gdiplus::Ok) {
+    if (target_size > 0 &&
+        (static_cast<int>(bmp->GetWidth()) != target_size ||
+         static_cast<int>(bmp->GetHeight()) != target_size)) {
+      std::unique_ptr<Gdiplus::Bitmap> scaled(
+          new Gdiplus::Bitmap(target_size, target_size,
+                              PixelFormat32bppPARGB));
+      if (scaled && scaled->GetLastStatus() == Gdiplus::Ok) {
+        Gdiplus::Graphics graphics(scaled.get());
+        graphics.SetInterpolationMode(
+            Gdiplus::InterpolationModeHighQualityBicubic);
+        graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+        graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+        graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+        graphics.DrawImage(bmp.get(), 0, 0, target_size, target_size);
+        HICON hicon = nullptr;
+        scaled->GetHICON(&hicon);
+        return hicon;
+      }
+    }
     HICON hicon = nullptr;
     bmp->GetHICON(&hicon);
     return hicon;
@@ -569,23 +612,48 @@ HICON XueHuaNaviteSystemTrayPlugin::LoadHIconFromMap(
 
 HBITMAP XueHuaNaviteSystemTrayPlugin::LoadHBitmapFromMap(
     const flutter::EncodableMap &icon_map, int target_size) {
+  // Menu bitmaps (MIIM_BITMAP / hbmpItem) are drawn 1:1 by Win32. Always emit
+  // exactly target_size (typically SM_CXMENUCHECK) so asset/system icons that
+  // arrive larger -- or whose iconSize overrides LoadHIconFromMap -- do not
+  // blow up the popup row height relative to the text.
+  if (target_size <= 0) {
+    target_size = GetSystemMetrics(SM_CXMENUCHECK);
+  }
+
   HICON hicon = LoadHIconFromMap(icon_map, target_size);
   if (hicon == nullptr) {
     return nullptr;
   }
-  std::unique_ptr<Gdiplus::Bitmap> bmp(Gdiplus::Bitmap::FromHICON(hicon));
+
+  std::unique_ptr<Gdiplus::Bitmap> source(Gdiplus::Bitmap::FromHICON(hicon));
   DestroyIcon(hicon);
-  if (bmp && bmp->GetLastStatus() == Gdiplus::Ok) {
-    HBITMAP hbitmap = nullptr;
-    bmp->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hbitmap);
-    if (hbitmap != nullptr) {
-      allocated_bitmaps_.push_back(hbitmap);
-      return hbitmap;
-    }
+  if (!source || source->GetLastStatus() != Gdiplus::Ok) {
+    return nullptr;
+  }
+
+  std::unique_ptr<Gdiplus::Bitmap> scaled(
+      new Gdiplus::Bitmap(target_size, target_size, PixelFormat32bppPARGB));
+  if (!scaled || scaled->GetLastStatus() != Gdiplus::Ok) {
+    return nullptr;
+  }
+
+  {
+    Gdiplus::Graphics graphics(scaled.get());
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+    graphics.DrawImage(source.get(), 0, 0, target_size, target_size);
+  }
+
+  HBITMAP hbitmap = nullptr;
+  scaled->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hbitmap);
+  if (hbitmap != nullptr) {
+    allocated_bitmaps_.push_back(hbitmap);
+    return hbitmap;
   }
   return nullptr;
 }
-
 void XueHuaNaviteSystemTrayPlugin::FreeMenuResources() {
   if (root_menu_ != nullptr) {
     DestroyMenu(root_menu_);
