@@ -1,5 +1,5 @@
 ---
-name: xue-hua-navite-system-tray
+name: xue-hua-navite-system-tray-usage
 description: Use when the user is working with xue_hua_navite_system_tray APIs to implement native desktop system tray / menu bar icons, inline status text, tooltips, nested context menus with checkboxes/radios/shortcuts, tray notifications, Dock visibility toggling, and minimize-to-tray window management across macOS, Windows, and Linux.
 ---
 # xue-hua-navite-system-tray
