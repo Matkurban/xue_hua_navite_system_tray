@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_navite_system_tray/xue_hua_navite_system_tray.dart';
 
 void main() {
@@ -312,10 +312,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
     setState(() {
       _syncCounter++;
     });
-    await _tray.updateMenuItem(
-      'sync_now',
-      label: 'Sync Now ($_syncCounter)',
-    );
+    await _tray.updateMenuItem('sync_now', label: 'Sync Now ($_syncCounter)');
     _appendLog('Updated menu item "sync_now" in-place (count: $_syncCounter)');
   }
 
@@ -355,10 +352,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(
-      canvas,
-      Offset((size - tp.width) / 2, (size - tp.height) / 2),
-    );
+    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
 
     final ui.Image img = await recorder.endRecording().toImage(
       size.toInt(),
@@ -439,9 +433,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
                 size: 18,
                 color: _isTrayInitialized ? Colors.green : Colors.grey,
               ),
-              label: Text(
-                _isTrayInitialized ? 'Tray Active' : 'Tray Inactive',
-              ),
+              label: Text(_isTrayInitialized ? 'Tray Active' : 'Tray Inactive'),
             ),
           ),
         ],
@@ -465,10 +457,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
             ),
           ),
           const VerticalDivider(width: 1),
-          Expanded(
-            flex: 2,
-            child: _buildEventLogPanel(colors),
-          ),
+          Expanded(flex: 2, child: _buildEventLogPanel(colors)),
         ],
       ),
     );
@@ -490,9 +479,8 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
                 const SizedBox(width: 8),
                 Text(
                   'Platform Backend & Runtime Capabilities',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 TextButton.icon(
@@ -545,10 +533,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
   Widget _capabilityBadge(String label, bool supported) {
     return Chip(
       visualDensity: VisualDensity.compact,
-      avatar: Icon(
-        supported ? Icons.check : Icons.info_outline,
-        size: 15,
-      ),
+      avatar: Icon(supported ? Icons.check : Icons.info_outline, size: 15),
       label: Text(label, style: const TextStyle(fontSize: 12)),
     );
   }
@@ -562,9 +547,8 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
           children: <Widget>[
             Text(
               '1. Lifecycle, Icons, Inline Title & Tooltip',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -727,9 +711,8 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
           children: <Widget>[
             Text(
               '2. Context Menu, Click Trigger & Dynamic Item Updates',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Row(
@@ -830,9 +813,8 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
           children: <Widget>[
             Text(
               '3. Window Control, Dock Visibility & Tray Notifications',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Wrap(

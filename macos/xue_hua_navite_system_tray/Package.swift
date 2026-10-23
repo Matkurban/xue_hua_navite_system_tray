@@ -6,23 +6,23 @@ import PackageDescription
 let package = Package(
     name: "xue_hua_navite_system_tray",
     platforms: [
-        .macOS("11.0")
+        .macOS("11.0"),
     ],
     products: [
-        .library(name: "xue-hua-navite-system-tray", targets: ["xue_hua_navite_system_tray"])
+        .library(name: "xue-hua-navite-system-tray", targets: ["xue_hua_navite_system_tray"]),
     ],
     dependencies: [
-        .package(name: "FlutterFramework", path: "../FlutterFramework")
+        .package(name: "FlutterFramework", path: "../FlutterFramework"),
     ],
     targets: [
         .target(
             name: "xue_hua_navite_system_tray",
             dependencies: [
-                .product(name: "FlutterFramework", package: "FlutterFramework")
+                .product(name: "FlutterFramework", package: "FlutterFramework"),
             ],
             resources: [
-                .process("PrivacyInfo.xcprivacy")
+                .process("PrivacyInfo.xcprivacy"),
             ]
-        )
+        ),
     ]
 )
