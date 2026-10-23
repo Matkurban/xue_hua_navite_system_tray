@@ -1,3 +1,7 @@
+## 1.0.5
+
+* Windows: fixed `hideMainWindow` process teardown when invoked from the tray menu by completing the method-channel reply before ShowWindow, validating the Flutter root HWND, and deferring menu onTap/onChanged off the inbound onTrayEvent handler (shared Dart fix also helps Linux).
+
 ## 1.0.4
 
 * Windows: scale tray context-menu item icons to `SM_CXMENUCHECK` so asset/system glyphs match menu text height.
