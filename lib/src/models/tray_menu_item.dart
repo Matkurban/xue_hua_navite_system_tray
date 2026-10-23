@@ -217,10 +217,10 @@ class TrayMenuItem {
       'id': id,
       'type': type.name,
       'label': label,
-      if (toolTip != null) 'toolTip': toolTip,
+      'toolTip': ?toolTip,
       'enabled': enabled,
       'checked': checked,
-      if (groupId != null) 'groupId': groupId,
+      'groupId': ?groupId,
       if (icon != null) 'icon': icon!.toMap(),
       if (shortcut != null) ...<String, dynamic>{
         'shortcut': shortcut!.toMap(),
