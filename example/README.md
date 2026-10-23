@@ -1,17 +1,10 @@
 # xue_hua_navite_system_tray_example
 
-Demonstrates how to use the xue_hua_navite_system_tray plugin.
+Interactive desktop workbench demonstrating all features of `xue_hua_navite_system_tray`:
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- System tray initialization (`initSystemTray`), visibility toggling (`setVisible`), and cleanup (`destroy`)
+- Switching between OS system symbols (`TrayIconSource.system`) and dynamically rendered in-memory PNG badge icons (`TrayIconSource.bytes`)
+- Inline status bar titles (`setTitle`) with a live 1-second CPU metric ticker and hover tooltips (`setToolTip`)
+- Context menu construction (`TrayMenuItem.header`, `action`, `checkbox`, `radio`, `submenu`, `separator`) with keyboard shortcuts (`TrayMenuShortcut`) and in-place single-item updates (`updateMenuItem`)
+- Click trigger mode switching (`TrayMenuTrigger.rightClick`, `leftClick`, `anyClick`, `manual`) and programmatic menu popup (`popUpContextMenu`)
+- Main window visibility control (`hideMainWindow`, `showMainWindow`), macOS Dock icon visibility toggling (`setDockIconVisible`), tray notifications (`showNotification`), screen bounds inspection (`getBounds`), and live event logging (`events`)

@@ -22,21 +22,25 @@ using flutter::MethodResultFunctions;
 
 }  // namespace
 
-TEST(XueHuaNaviteSystemTrayPlugin, GetPlatformVersion) {
+TEST(XueHuaNaviteSystemTrayPlugin, GetCapabilitiesReturnsWindowsMetadata) {
   XueHuaNaviteSystemTrayPlugin plugin;
-  // Save the reply value from the success callback.
-  std::string result_string;
+  EncodableMap capabilities_result;
   plugin.HandleMethodCall(
-      MethodCall("getPlatformVersion", std::make_unique<EncodableValue>()),
+      MethodCall("getCapabilities", std::make_unique<EncodableValue>()),
       std::make_unique<MethodResultFunctions<>>(
-          [&result_string](const EncodableValue* result) {
-            result_string = std::get<std::string>(*result);
+          [&capabilities_result](const EncodableValue *result) {
+            capabilities_result = std::get<EncodableMap>(*result);
           },
           nullptr, nullptr));
 
-  // Since the exact string varies by host, just ensure that it's a string
-  // with the expected format.
-  EXPECT_TRUE(result_string.rfind("Windows ", 0) == 0);
+  EXPECT_EQ(std::get<std::string>(
+                capabilities_result[EncodableValue("platform")]),
+            "windows");
+  EXPECT_EQ(std::get<std::string>(
+                capabilities_result[EncodableValue("backendName")]),
+            "Shell_NotifyIconW");
+  EXPECT_TRUE(std::get<bool>(
+      capabilities_result[EncodableValue("supportsTrayNotification")]));
 }
 
 }  // namespace test
