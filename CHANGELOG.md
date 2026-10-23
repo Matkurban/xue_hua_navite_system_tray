@@ -1,3 +1,8 @@
+## 1.0.1
+
+* Fixed Windows CMake / gtest build issues that blocked Visual Studio 2026 builds.
+* Hardened Windows system tray integration tests (init, menu, tooltip, bounds, notification, main window show/hide).
+
 ## 1.0.0
 
 * Initial stable release of `xue_hua_navite_system_tray` by Matkurban (`3496354336@qq.com`).
