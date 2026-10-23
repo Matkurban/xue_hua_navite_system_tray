@@ -1,5 +1,8 @@
 ## 1.0.3
 
+## 1.0.4
+
+* Windows: scale tray context-menu item icons to `SM_CXMENUCHECK` so asset/system glyphs match menu text height.
 * Replaced explicit null checks in map literals with null-aware elements (`'key': ?value`) so `use_null_aware_elements` static analysis passes.
 
 ## 1.0.2
