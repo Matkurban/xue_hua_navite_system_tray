@@ -17,7 +17,7 @@ void main() {
     return const TrayIconSource.system('applications-system');
   }
 
-  testWidgets('Windows tray API smoke: capabilities, init, menu, notify, bounds', (
+  testWidgets('Tray API smoke: capabilities, init, menu, notify, bounds', (
     WidgetTester tester,
   ) async {
     final XueHuaNaviteSystemTray tray = XueHuaNaviteSystemTray.instance;
@@ -25,10 +25,20 @@ void main() {
     final TrayCapabilities capabilities = await tray.getCapabilities();
     expect(capabilities.platform.isNotEmpty, isTrue);
     expect(capabilities.backendName.isNotEmpty, isTrue);
-    // Windows backend identity.
+    // Platform backend identity.
     if (Platform.isWindows) {
       expect(capabilities.backendName.toLowerCase(), contains('shell_notifyicon'));
       expect(capabilities.supportsInlineTitle, isFalse);
+    }
+    if (Platform.isLinux) {
+      final String backend = capabilities.backendName.toLowerCase();
+      expect(
+        backend.contains('ayatana') ||
+            backend.contains('appindicator') ||
+            backend.contains('gtkstatusicon'),
+        isTrue,
+        reason: 'Unexpected Linux tray backend: ${capabilities.backendName}',
+      );
     }
 
     final bool initialized = await tray.initSystemTray(
@@ -59,6 +69,7 @@ void main() {
 
     final TrayBounds? bounds = await tray.getBounds();
     // Bounds should be available on Windows via Shell_NotifyIconGetRect.
+    // On Linux, AppIndicator backends often cannot report icon geometry.
     if (Platform.isWindows) {
       expect(bounds, isNotNull);
       expect(bounds!.width > 0, isTrue);
@@ -72,14 +83,18 @@ void main() {
         iconType: TrayNotificationIconType.info,
       ),
     );
-    expect(notified, isTrue);
+    // Linux uses notify-send; capability reflects whether the binary is on PATH.
+    // Delivery still needs a desktop notification daemon, which is environment-dependent.
+    if (capabilities.supportsTrayNotification) {
+      expect(notified, isTrue);
+    }
 
     // Window helpers should be callable without throwing.
     final bool visibleBefore = await tray.isMainWindowVisible();
     expect(visibleBefore, isA<bool>());
     await tray.hideMainWindow();
     await tray.showMainWindow(focus: true);
-    await tray.setDockIconVisible(true); // no-op on Windows
+    await tray.setDockIconVisible(true); // no-op outside macOS
 
     await tray.destroy();
   });

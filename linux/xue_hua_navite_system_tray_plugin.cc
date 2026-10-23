@@ -506,8 +506,10 @@ FlMethodResponse *build_linux_capabilities_response(const gchar *backend_name,
                            fl_value_new_bool(!is_app_indicator));
   fl_value_set_string_take(map, "supportsDockVisibilityToggle",
                            fl_value_new_bool(FALSE));
+  g_autofree gchar *notify_send_path =
+      g_find_program_in_path("notify-send");
   fl_value_set_string_take(map, "supportsTrayNotification",
-                           fl_value_new_bool(TRUE));
+                           fl_value_new_bool(notify_send_path != nullptr));
   return FL_METHOD_RESPONSE(fl_method_success_response_new(map));
 }
 
@@ -669,15 +671,19 @@ static void xue_hua_navite_system_tray_plugin_handle_method_call(
   } else if (strcmp(method, "showNotification") == 0) {
     const gchar *title = GetFlMapString(args, "title", "");
     const gchar *message = GetFlMapString(args, "message", "");
-    gchar *argv[] = {
-        const_cast<gchar *>("notify-send"),
-        const_cast<gchar *>(title),
-        const_cast<gchar *>(message),
-        nullptr,
-    };
-    gboolean spawned = g_spawn_async(nullptr, argv, nullptr,
-                                     G_SPAWN_SEARCH_PATH, nullptr, nullptr,
-                                     nullptr, nullptr);
+    g_autofree gchar *notify_send_path =
+        g_find_program_in_path("notify-send");
+    gboolean spawned = FALSE;
+    if (notify_send_path != nullptr) {
+      gchar *argv[] = {
+          notify_send_path,
+          const_cast<gchar *>(title),
+          const_cast<gchar *>(message),
+          nullptr,
+      };
+      spawned = g_spawn_async(nullptr, argv, nullptr, G_SPAWN_DEFAULT, nullptr,
+                              nullptr, nullptr, nullptr);
+    }
     g_autoptr(FlValue) res = fl_value_new_bool(spawned);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(res));
   } else if (strcmp(method, "setDockIconVisible") == 0) {
