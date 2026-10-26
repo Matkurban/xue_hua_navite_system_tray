@@ -556,11 +556,13 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
               runSpacing: 8,
               children: <Widget>[
                 FilledButton.icon(
+                  key: const ValueKey('btn_init_tray'),
                   onPressed: _initializeTrayAndCapabilities,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Init / Reset Tray'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey('btn_toggle_tray_visible'),
                   onPressed: () async {
                     final bool next = !_isTrayVisible;
                     await _tray.setVisible(next);
@@ -573,6 +575,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
                   label: Text(_isTrayVisible ? 'Hide Tray' : 'Show Tray'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey('btn_destroy_tray'),
                   onPressed: _destroyTray,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Destroy Tray'),
@@ -822,6 +825,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
               runSpacing: 8,
               children: <Widget>[
                 OutlinedButton.icon(
+                  key: const ValueKey('btn_minimize_window'),
                   onPressed: () async {
                     await _tray.hideMainWindow();
                     _appendLog(
@@ -832,6 +836,7 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
                   label: const Text('Minimize Window to Tray'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey('btn_show_window'),
                   onPressed: () async {
                     await _tray.showMainWindow(focus: true);
                     _appendLog('Restored and focused main window');

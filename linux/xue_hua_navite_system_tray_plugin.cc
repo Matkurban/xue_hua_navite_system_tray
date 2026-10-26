@@ -39,6 +39,8 @@ typedef void (*FnAppIndicatorSetStatus)(void *indicator,
 typedef void (*FnAppIndicatorSetIconFull)(void *indicator,
                                           const gchar *icon_name,
                                           const gchar *icon_desc);
+typedef void (*FnAppIndicatorSetIconThemePath)(void *indicator,
+                                               const gchar *icon_theme_path);
 typedef void (*FnAppIndicatorSetMenu)(void *indicator, GtkMenu *menu);
 typedef void (*FnAppIndicatorSetLabel)(void *indicator, const gchar *label,
                                        const gchar *guide);
@@ -52,6 +54,7 @@ struct AppIndicatorSymbols {
   FnAppIndicatorNew app_indicator_new = nullptr;
   FnAppIndicatorSetStatus app_indicator_set_status = nullptr;
   FnAppIndicatorSetIconFull app_indicator_set_icon_full = nullptr;
+  FnAppIndicatorSetIconThemePath app_indicator_set_icon_theme_path = nullptr;
   FnAppIndicatorSetMenu app_indicator_set_menu = nullptr;
   FnAppIndicatorSetLabel app_indicator_set_label = nullptr;
   FnAppIndicatorSetTitle app_indicator_set_title = nullptr;
@@ -95,6 +98,9 @@ struct AppIndicatorSymbols {
           app_indicator_new = fn_new;
           app_indicator_set_status = fn_status;
           app_indicator_set_icon_full = fn_icon;
+          app_indicator_set_icon_theme_path =
+              reinterpret_cast<FnAppIndicatorSetIconThemePath>(
+                  dlsym(h, "app_indicator_set_icon_theme_path"));
           app_indicator_set_menu = fn_menu;
           app_indicator_set_label = fn_label;
           app_indicator_set_title = fn_title;
@@ -276,8 +282,27 @@ static void ApplyTrayIcon(XueHuaNaviteSystemTrayPlugin *self,
   std::string icon_ref = ResolveIconPathOrName(self, icon_map, &is_theme);
 
   if (self->using_app_indicator && self->app_indicator != nullptr) {
+    // Ayatana/AppIndicator looks up icons by theme name. Absolute asset/bytes
+    // paths only work when the parent directory is registered as an icon theme
+    // path and the basename (sans extension) is passed as the icon name.
+    std::string icon_name = icon_ref;
+    if (!is_theme && !icon_ref.empty() && icon_ref[0] == '/') {
+      g_autofree gchar *dir = g_path_get_dirname(icon_ref.c_str());
+      g_autofree gchar *base = g_path_get_basename(icon_ref.c_str());
+      g_autofree gchar *dot = g_strdup(base);
+      gchar *ext = strrchr(dot, '.');
+      if (ext != nullptr) {
+        *ext = '\0';
+      }
+      if (self->indicator_api.app_indicator_set_icon_theme_path != nullptr &&
+          dir != nullptr) {
+        self->indicator_api.app_indicator_set_icon_theme_path(
+            self->app_indicator, dir);
+      }
+      icon_name = (dot != nullptr) ? std::string(dot) : icon_ref;
+    }
     self->indicator_api.app_indicator_set_icon_full(
-        self->app_indicator, icon_ref.c_str(), "System Tray Icon");
+        self->app_indicator, icon_name.c_str(), "System Tray Icon");
   } else if (self->status_icon != nullptr) {
     G_GNUC_BEGIN_IGNORE_DEPRECATIONS
     if (is_theme) {
@@ -644,7 +669,10 @@ static void xue_hua_navite_system_tray_plugin_handle_method_call(
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (strcmp(method, "popUpContextMenu") == 0) {
-    if (self->context_menu != nullptr) {
+    // AppIndicator owns menu presentation; programmatic popup has no valid
+    // GdkWindow and triggers gtk_menu_popup_at_rect assertions. Only popup
+    // for the GtkStatusIcon fallback backend.
+    if (!self->using_app_indicator && self->context_menu != nullptr) {
       gtk_menu_popup_at_pointer(GTK_MENU(self->context_menu), nullptr);
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
