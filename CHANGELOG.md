@@ -1,3 +1,9 @@
+## 1.0.6
+
+* Linux: AppIndicator asset/file/bytes tray icons now register the icon directory via `app_indicator_set_icon_theme_path` and pass the basename, so custom icons actually resolve under Ayatana/AppIndicator.
+* Linux: `popUpContextMenu` is a safe no-op on AppIndicator backends (matches `supportsProgrammaticMenuPopup: false`) and no longer triggers `gtk_menu_popup_at_rect` critical assertions.
+* Example: added `flutter_driver` harness (`test_driver/`) plus fuller Linux integration coverage for icons, menu callbacks, window hide/show, destroy/reinit; example UI uses `ValueKey`s for lifecycle controls.
+
 ## 1.0.5
 
 * Windows: fixed `hideMainWindow` process teardown when invoked from the tray menu by completing the method-channel reply before ShowWindow, validating the Flutter root HWND, and deferring menu onTap/onChanged off the inbound onTrayEvent handler (shared Dart fix also helps Linux).
