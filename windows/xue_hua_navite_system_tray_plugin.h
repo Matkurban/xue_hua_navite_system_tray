@@ -59,6 +59,8 @@ class XueHuaNaviteSystemTrayPlugin : public flutter::Plugin {
   static constexpr UINT kTrayCallbackMessage = WM_APP + 0x241;
   static constexpr UINT kHideMainWindowMessage = WM_APP + 0x242;
   static constexpr UINT kShowMainWindowMessage = WM_APP + 0x243;
+  static constexpr UINT kPopUpContextMenuMessage = WM_APP + 0x244;
+  static constexpr UINT_PTR kPopUpAutoDismissTimerId = 0x245;
   static constexpr UINT kTrayIconId = 1001;
 
   static LRESULT CALLBACK MessageWindowProc(HWND hwnd, UINT message,

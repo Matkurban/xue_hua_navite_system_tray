@@ -1,3 +1,8 @@
+## 1.0.7
+
+* Windows: `popUpContextMenu` no longer blocks the method-channel Future — reply Success first, then show the menu via `PostMessage` (TrackPopupMenu is modal). Optional `autoDismissMs` / `dismissContextMenu` support automated tests.
+* Example/tests: make flutter_driver and full-API IT cross-platform (Windows/Linux/macOS); fix workbench Row overflows; asset icon IT uses platform system icons.
+
 ## 1.0.6
 
 * Linux: AppIndicator asset/file/bytes tray icons now register the icon directory via `app_indicator_set_icon_theme_path` and pass the basename, so custom icons actually resolve under Ayatana/AppIndicator.

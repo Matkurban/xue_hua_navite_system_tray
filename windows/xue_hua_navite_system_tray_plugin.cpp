@@ -180,6 +180,24 @@ LRESULT XueHuaNaviteSystemTrayPlugin::HandleWindowMessage(HWND hwnd,
     ShowMainFlutterWindow(wparam != 0);
     return 0;
   }
+  if (message == kPopUpContextMenuMessage) {
+    // Programmatic popup must not run inline on the method-channel stack:
+    // TrackPopupMenu is modal and would otherwise stall the Dart Future.
+    const UINT auto_dismiss_ms = static_cast<UINT>(wparam);
+    if (auto_dismiss_ms > 0) {
+      SetTimer(hwnd, kPopUpAutoDismissTimerId, auto_dismiss_ms, nullptr);
+    }
+    PopUpContextMenu();
+    if (auto_dismiss_ms > 0) {
+      KillTimer(hwnd, kPopUpAutoDismissTimerId);
+    }
+    return 0;
+  }
+  if (message == WM_TIMER && wparam == kPopUpAutoDismissTimerId) {
+    KillTimer(hwnd, kPopUpAutoDismissTimerId);
+    EndMenu();
+    return 0;
+  }
 
   if (message == kTrayCallbackMessage) {
     UINT event_msg = LOWORD(lparam);
@@ -312,7 +330,27 @@ void XueHuaNaviteSystemTrayPlugin::HandleMethodCall(
     UpdateMenuItem(args);
     result->Success();
   } else if (method == "popUpContextMenu") {
-    PopUpContextMenu();
+    // Reply first, then show the menu on the message window so TrackPopupMenu
+    // (modal) cannot block the method-channel Future / driver requestData.
+    // Optional autoDismissMs (integration/driver tests) ends the modal loop.
+    UINT auto_dismiss_ms = 0;
+    const auto *dismiss_val = FindMapValue(args, "autoDismissMs");
+    if (dismiss_val && std::holds_alternative<int32_t>(*dismiss_val)) {
+      const int32_t raw = std::get<int32_t>(*dismiss_val);
+      auto_dismiss_ms = static_cast<UINT>(raw > 0 ? raw : 0);
+    } else if (dismiss_val && std::holds_alternative<int64_t>(*dismiss_val)) {
+      const int64_t raw = std::get<int64_t>(*dismiss_val);
+      auto_dismiss_ms = static_cast<UINT>(raw > 0 ? raw : 0);
+    } else if (dismiss_val && std::holds_alternative<double>(*dismiss_val)) {
+      const double raw = std::get<double>(*dismiss_val);
+      auto_dismiss_ms = static_cast<UINT>(raw > 0.0 ? raw : 0.0);
+    }
+    result->Success();
+    if (message_hwnd_ != nullptr) {
+      PostMessageW(message_hwnd_, kPopUpContextMenuMessage, auto_dismiss_ms, 0);
+    }
+  } else if (method == "dismissContextMenu") {
+    EndMenu();
     result->Success();
   } else if (method == "getBounds") {
     RECT rc{};
