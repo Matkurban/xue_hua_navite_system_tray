@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:flutter_driver/driver_extension.dart';
 import 'package:xue_hua_navite_system_tray/xue_hua_navite_system_tray.dart';
 import 'package:xue_hua_navite_system_tray_example/main.dart' as app;
@@ -42,7 +42,16 @@ Future<String> _handleDriverCommand(String? command) async {
       ]);
       return 'ok';
     case 'popUpMenu':
-      await tray.popUpContextMenu();
+      // Pass autoDismissMs so Windows TrackPopupMenu cannot stall the suite.
+      await const MethodChannel('xue_hua_navite_system_tray')
+          .invokeMethod<void>('popUpContextMenu', <String, Object?>{
+        'autoDismissMs': 700,
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      return 'ok';
+    case 'dismissMenu':
+      await const MethodChannel('xue_hua_navite_system_tray')
+          .invokeMethod<void>('dismissContextMenu');
       return 'ok';
     case 'hideWindow':
       await tray.hideMainWindow();

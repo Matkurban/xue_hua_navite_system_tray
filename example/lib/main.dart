@@ -477,12 +477,14 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
               children: <Widget>[
                 Icon(Icons.layers_outlined, color: colors.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Platform Backend & Runtime Capabilities',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Platform Backend & Runtime Capabilities',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
                 TextButton.icon(
                   onPressed: _refreshBounds,
                   icon: const Icon(Icons.my_location, size: 16),
@@ -926,11 +928,13 @@ class _SystemTrayDashboardPageState extends State<SystemTrayDashboardPage> {
             children: <Widget>[
               const Icon(Icons.terminal, size: 18),
               const SizedBox(width: 8),
-              Text(
-                'Live Tray Event Stream (${_eventLogs.length})',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'Live Tray Event Stream (${_eventLogs.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const Spacer(),
               TextButton(
                 onPressed: () => setState(_eventLogs.clear),
                 child: const Text('Clear'),

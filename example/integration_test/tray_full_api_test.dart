@@ -64,8 +64,16 @@ void main() {
     final StreamSubscription<TrayEvent> sub = tray.events.listen(events.add);
 
     final TrayCapabilities caps = await tray.getCapabilities();
-    expect(caps.platform.toLowerCase(), contains('linux'));
+    expect(caps.platform.isNotEmpty, isTrue);
     expect(caps.backendName.isNotEmpty, isTrue);
+    if (Platform.isWindows) {
+      expect(caps.platform.toLowerCase(), contains('windows'));
+      expect(caps.backendName.toLowerCase(), contains('shell_notifyicon'));
+    } else if (Platform.isLinux) {
+      expect(caps.platform.toLowerCase(), contains('linux'));
+    } else if (Platform.isMacOS) {
+      expect(caps.platform.toLowerCase(), contains('macos'));
+    }
 
     final bool initialized = await tray.initSystemTray(
       TrayConfig(

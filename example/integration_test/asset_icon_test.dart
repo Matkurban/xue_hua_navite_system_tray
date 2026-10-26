@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -11,7 +12,11 @@ void main() {
   testWidgets('asset and bytes icons apply without throwing', (tester) async {
     final tray = XueHuaNaviteSystemTray.instance;
     final ok = await tray.initSystemTray(TrayConfig(
-      icon: const TrayIconSource.system('applications-system'),
+      icon: Platform.isWindows
+          ? const TrayIconSource.system('application')
+          : Platform.isMacOS
+              ? const TrayIconSource.system('sparkles', isTemplate: true)
+              : const TrayIconSource.system('applications-system'),
       title: 'IconTest',
       toolTip: 'IconTest',
       menuItems: [
@@ -39,7 +44,13 @@ void main() {
     final bytes = bd!.buffer.asUint8List();
     await tray.setIcon(TrayIconSource.bytes(Uint8List.fromList(bytes), iconSize: 16));
 
-    await tray.setIcon(const TrayIconSource.system('dialog-warning'));
+    await tray.setIcon(
+      Platform.isWindows
+          ? const TrayIconSource.system('warning')
+          : Platform.isMacOS
+              ? const TrayIconSource.system('exclamationmark.triangle', isTemplate: true)
+              : const TrayIconSource.system('dialog-warning'),
+    );
     await tray.destroy();
   });
 }

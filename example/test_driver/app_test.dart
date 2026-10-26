@@ -46,7 +46,7 @@ void main() {
   });
 
   tearDownAll(() async {
-    final File out = File('/tmp/tray-flutter-driver-ui-log.txt');
+    final File out = File('${Directory.systemTemp.path}${Platform.pathSeparator}tray-flutter-driver-ui-log.txt');
     await out.writeAsString(log.toString());
     await driver.close();
   });
@@ -58,8 +58,24 @@ void main() {
     );
     await driver.waitFor(find.text('Platform Backend & Runtime Capabilities'));
     final String caps = await driver.requestData('caps');
-    expect(caps.toLowerCase(), contains('linux'));
-    expect(caps.toLowerCase(), contains('ayatana'));
+    final String capsLower = caps.toLowerCase();
+    if (Platform.isWindows) {
+      expect(capsLower, contains('windows'));
+      expect(capsLower, contains('shell_notifyicon'));
+    } else if (Platform.isLinux) {
+      expect(capsLower, contains('linux'));
+      expect(
+        capsLower.contains('ayatana') ||
+            capsLower.contains('appindicator') ||
+            capsLower.contains('gtkstatusicon'),
+        isTrue,
+        reason: 'Unexpected Linux caps: $caps',
+      );
+    } else if (Platform.isMacOS) {
+      expect(capsLower, contains('macos'));
+    } else {
+      fail('Unsupported platform for driver caps: $caps');
+    }
     final String tree = await treeText(driver);
     expect(tree.contains('Backend:'), isTrue);
     log.writeln('PASS: chrome + caps via requestData ($caps)');
@@ -104,9 +120,12 @@ void main() {
     expect(await driver.requestData('setToolTip'), 'ok');
     expect(await driver.requestData('updateSyncLabel'), 'ok');
     expect(await driver.requestData('rebuildMenu'), 'ok');
+    // Windows TrackPopupMenu is modal; native posts it async after Success.
     expect(await driver.requestData('popUpMenu'), 'ok');
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(await driver.requestData('dismissMenu'), 'ok');
     log.writeln('PASS: title/tooltip/menu via requestData');
-  });
+  }, timeout: const Timeout(Duration(seconds: 60)));
 
   test('requestData: window hide/show cycle', () async {
     expect(await driver.requestData('isWindowVisible'), 'true');
