@@ -77,7 +77,9 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
         case "updateMenuItem":
             updateMenuItem(args: args, result: result)
         case "popUpContextMenu":
-            popUpContextMenu(result: result)
+            popUpContextMenu(args: args, result: result)
+        case "dismissContextMenu":
+            dismissContextMenu(result: result)
         case "getBounds":
             getBounds(result: result)
         case "showNotification":
@@ -701,8 +703,28 @@ public class XueHuaNaviteSystemTrayPlugin: NSObject, FlutterPlugin, NSMenuDelega
         }
     }
 
-    private func popUpContextMenu(result: @escaping FlutterResult) {
-        showContextMenuOnStatusItem()
+    private func popUpContextMenu(args: [String: Any], result: @escaping FlutterResult) {
+        // Reply first (Windows parity) so method-channel / flutter_driver
+        // requestData cannot stall while the status-item menu is open.
+        let autoDismissMs = asDouble(args["autoDismissMs"], default: 0)
+        result(nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            // Schedule cancel before performClick so the timer can fire inside
+            // AppKit's nested menu-tracking run loop.
+            if autoDismissMs > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + autoDismissMs / 1000.0) { [weak self] in
+                    self?.contextMenu?.cancelTracking()
+                    self?.statusItem?.menu = nil
+                }
+            }
+            self.showContextMenuOnStatusItem()
+        }
+    }
+
+    private func dismissContextMenu(result: @escaping FlutterResult) {
+        contextMenu?.cancelTracking()
+        statusItem?.menu = nil
         result(nil)
     }
 

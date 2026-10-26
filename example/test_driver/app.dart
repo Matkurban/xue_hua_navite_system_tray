@@ -50,8 +50,57 @@ Future<String> _handleDriverCommand(String? command) async {
       await Future<void>.delayed(const Duration(milliseconds: 900));
       return 'ok';
     case 'dismissMenu':
-      await const MethodChannel('xue_hua_navite_system_tray')
-          .invokeMethod<void>('dismissContextMenu');
+      try {
+        await const MethodChannel('xue_hua_navite_system_tray')
+            .invokeMethod<void>('dismissContextMenu');
+      } on MissingPluginException {
+        // Older native builds may omit dismiss; treat as soft success.
+      }
+      return 'ok';
+    case 'hideTray':
+      await tray.setVisible(false);
+      return 'ok';
+    case 'showTray':
+      await tray.setVisible(true);
+      return 'ok';
+    case 'destroyTray':
+      await tray.destroy();
+      return 'ok';
+    case 'initTray':
+      final TrayCapabilities caps = await tray.getCapabilities();
+      final TrayIconSource icon;
+      if (caps.platform.toLowerCase().contains('macos')) {
+        icon = const TrayIconSource.system('sparkles', isTemplate: true);
+      } else if (caps.platform.toLowerCase().contains('windows')) {
+        icon = const TrayIconSource.system('application');
+      } else {
+        icon = const TrayIconSource.system('applications-system');
+      }
+      final bool ok = await tray.initSystemTray(
+        TrayConfig(
+          icon: icon,
+          title: 'Driver',
+          toolTip: 'Driver reinit',
+          menuItems: <TrayMenuItem>[
+            TrayMenuItem.action(
+              id: 'show_window',
+              label: 'Show Main Window',
+              onTap: () async {
+                await tray.showMainWindow(focus: true);
+              },
+            ),
+          ],
+        ),
+      );
+      return ok ? 'ok' : 'fail';
+    case 'setDockVisible':
+      await tray.setDockIconVisible(true);
+      return 'ok';
+    case 'setDockHidden':
+      await tray.setDockIconVisible(false);
+      return 'ok';
+    case 'bringToFront':
+      await tray.showMainWindow(focus: true);
       return 'ok';
     case 'hideWindow':
       await tray.hideMainWindow();

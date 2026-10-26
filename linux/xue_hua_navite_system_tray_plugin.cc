@@ -676,6 +676,11 @@ static void xue_hua_navite_system_tray_plugin_handle_method_call(
       gtk_menu_popup_at_pointer(GTK_MENU(self->context_menu), nullptr);
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (strcmp(method, "dismissContextMenu") == 0) {
+    if (self->context_menu != nullptr) {
+      gtk_menu_popdown(GTK_MENU(self->context_menu));
+    }
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (strcmp(method, "getBounds") == 0) {
     GdkRectangle area{};
     gboolean has_rect = FALSE;

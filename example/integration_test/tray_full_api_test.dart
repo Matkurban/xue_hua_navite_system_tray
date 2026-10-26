@@ -213,9 +213,6 @@ void main() {
       ),
     ]);
 
-    // Programmatic popup is unsupported on AppIndicator but must not crash.
-    await tray.popUpContextMenu();
-
     // Simulated inbound menu callbacks (covers Dart deferred-dispatch path).
     await simulateMenuClick('do_action');
     await actionTapped.future.timeout(const Duration(seconds: 5));
@@ -232,10 +229,39 @@ void main() {
     expect(await tray.isMainWindowVisible(), isTrue);
     await simulateMenuClick('hide_window');
     await tester.pump(const Duration(milliseconds: 400));
+    // Native hide is async on macOS; wait for visibility to settle.
+    final DateTime hideDeadline = DateTime.now().add(const Duration(seconds: 5));
+    while (await tray.isMainWindowVisible()) {
+      if (DateTime.now().isAfter(hideDeadline)) {
+        fail('hideMainWindow did not hide within timeout');
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(await tray.isMainWindowVisible(), isFalse);
     await simulateMenuClick('show_window');
     await tester.pump(const Duration(milliseconds: 400));
+    final DateTime showDeadline = DateTime.now().add(const Duration(seconds: 5));
+    while (!(await tray.isMainWindowVisible())) {
+      if (DateTime.now().isAfter(showDeadline)) {
+        fail('showMainWindow did not show within timeout');
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(await tray.isMainWindowVisible(), isTrue);
+
+    // Programmatic popup after window cycle. autoDismissMs prevents macOS
+    // NSMenu tracking from wedging the platform main queue.
+    await const MethodChannel('xue_hua_navite_system_tray')
+        .invokeMethod<void>('popUpContextMenu', <String, Object?>{
+      'autoDismissMs': 400,
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+    try {
+      await const MethodChannel('xue_hua_navite_system_tray')
+          .invokeMethod<void>('dismissContextMenu');
+    } on MissingPluginException {
+      // Older native builds may omit dismiss.
+    }
 
     final bool notified = await tray.showNotification(
       const TrayNotification(
