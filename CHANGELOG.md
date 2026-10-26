@@ -1,3 +1,9 @@
+## 1.0.8
+
+* macOS: implement `dismissContextMenu` and honor optional `autoDismissMs` on `popUpContextMenu` (reply Success first, then show; cancel tracking on a timer so driver/IT cannot wedge AppKit's nested menu run loop).
+* Linux: implement `dismissContextMenu` via `gtk_menu_popdown` for cross-platform driver parity.
+* Example/tests: raise flutter_driver timeouts, scroll-into-view before UI taps, cover Dock toggle via requestData; full-API IT waits for async macOS window hide/show and pops the menu with `autoDismissMs`.
+
 ## 1.0.7
 
 * Windows: `popUpContextMenu` no longer blocks the method-channel Future — reply Success first, then show the menu via `PostMessage` (TrackPopupMenu is modal). Optional `autoDismissMs` / `dismissContextMenu` support automated tests.

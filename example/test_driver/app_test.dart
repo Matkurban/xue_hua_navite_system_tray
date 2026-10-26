@@ -8,12 +8,32 @@ Future<String> treeText(FlutterDriver driver) async {
   return rt.tree ?? '';
 }
 
+Future<void> ensureVisible(
+  FlutterDriver driver,
+  SerializableFinder finder, {
+  Duration timeout = const Duration(seconds: 25),
+}) async {
+  try {
+    await driver.waitFor(finder, timeout: const Duration(seconds: 2));
+  } catch (_) {
+    final SerializableFinder scrollable = find.byType('Scrollable');
+    await driver.scrollUntilVisible(
+      scrollable,
+      finder,
+      dyScroll: -140,
+      timeout: timeout,
+    );
+  }
+  await driver.scrollIntoView(finder);
+}
+
 Future<void> tapText(
   FlutterDriver driver,
   String text, {
   Duration timeout = const Duration(seconds: 25),
 }) async {
   final SerializableFinder finder = find.text(text);
+  await ensureVisible(driver, finder, timeout: timeout);
   await driver.waitFor(finder, timeout: timeout);
   await driver.tap(finder);
   await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -25,6 +45,7 @@ Future<void> tapKey(
   Duration timeout = const Duration(seconds: 25),
 }) async {
   final SerializableFinder finder = find.byValueKey(key);
+  await ensureVisible(driver, finder, timeout: timeout);
   await driver.waitFor(finder, timeout: timeout);
   await driver.tap(finder);
   await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -42,11 +63,14 @@ void main() {
     );
     await Future<void>.delayed(const Duration(seconds: 2));
     expect(await driver.requestData('ping'), 'pong');
+    expect(await driver.requestData('bringToFront'), 'ok');
     log.writeln('Connected to example workbench.');
   });
 
   tearDownAll(() async {
-    final File out = File('${Directory.systemTemp.path}${Platform.pathSeparator}tray-flutter-driver-ui-log.txt');
+    final File out = File(
+      '${Directory.systemTemp.path}${Platform.pathSeparator}tray-flutter-driver-ui-log.txt',
+    );
     await out.writeAsString(log.toString());
     await driver.close();
   });
@@ -73,6 +97,7 @@ void main() {
       );
     } else if (Platform.isMacOS) {
       expect(capsLower, contains('macos'));
+      expect(capsLower, contains('nsstatusitem'));
     } else {
       fail('Unsupported platform for driver caps: $caps');
     }
@@ -83,22 +108,28 @@ void main() {
 
   test('lifecycle UI: hide/show tray + destroy/reinit', () async {
     await tapKey(driver, 'btn_toggle_tray_visible');
-    await driver.waitFor(find.text('Show Tray'));
+    await driver.waitFor(
+      find.text('Show Tray'),
+      timeout: const Duration(seconds: 20),
+    );
     await tapKey(driver, 'btn_toggle_tray_visible');
-    await driver.waitFor(find.text('Hide Tray'));
+    await driver.waitFor(
+      find.text('Hide Tray'),
+      timeout: const Duration(seconds: 20),
+    );
 
     await tapKey(driver, 'btn_destroy_tray');
     await driver.waitFor(
       find.text('Tray Inactive'),
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 20),
     );
     await tapKey(driver, 'btn_init_tray');
     await driver.waitFor(
       find.text('Tray Active'),
-      timeout: const Duration(seconds: 20),
+      timeout: const Duration(seconds: 30),
     );
     log.writeln('PASS: UI lifecycle hide/show/destroy/reinit');
-  });
+  }, timeout: const Timeout(Duration(seconds: 120)));
 
   test('icons UI chips + requestData asset/bytes', () async {
     await tapText(driver, 'System Default Icon');
@@ -113,7 +144,7 @@ void main() {
       isTrue,
     );
     log.writeln('PASS: icon chips + requestData icons');
-  });
+  }, timeout: const Timeout(Duration(seconds: 120)));
 
   test('requestData: title tooltip menu popup', () async {
     expect(await driver.requestData('setTitle'), 'ok');
@@ -121,6 +152,7 @@ void main() {
     expect(await driver.requestData('updateSyncLabel'), 'ok');
     expect(await driver.requestData('rebuildMenu'), 'ok');
     // Windows TrackPopupMenu is modal; native posts it async after Success.
+    // macOS also replies first and honors autoDismissMs / dismissContextMenu.
     expect(await driver.requestData('popUpMenu'), 'ok');
     await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(await driver.requestData('dismissMenu'), 'ok');
@@ -144,14 +176,20 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(await driver.requestData('isWindowVisible'), 'true');
     log.writeln('PASS: window hide/show via requestData (double cycle)');
-  });
+  }, timeout: const Timeout(Duration(seconds: 60)));
 
-  test('requestData: notify + bounds', () async {
+  test('requestData: notify + bounds + dock', () async {
     final String notified = await driver.requestData('notify');
     expect(notified == 'true' || notified == 'false', isTrue);
     final String bounds = await driver.requestData('queryBounds');
     // AppIndicator often returns null bounds.
     expect(bounds.isNotEmpty, isTrue);
-    log.writeln('PASS: notify=$notified bounds=$bounds');
-  });
+
+    // Dock toggle is macOS-meaningful; other platforms treat as safe no-op.
+    expect(await driver.requestData('setDockHidden'), 'ok');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(await driver.requestData('setDockVisible'), 'ok');
+    expect(await driver.requestData('bringToFront'), 'ok');
+    log.writeln('PASS: notify=$notified bounds=$bounds dock toggled');
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }
