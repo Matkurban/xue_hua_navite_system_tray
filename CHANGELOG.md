@@ -1,3 +1,9 @@
+## 1.0.9
+
+* Example/tests: add gap coverage IT for file icon, `imagePosition`, Dock toggle, and high-level `popUpContextMenu`.
+* Example: add Android stub project plus unsupported-platform driver test so analyze/driver harness stay clean without iOS/Android runtime.
+* Example macOS: mark Flutter Assemble script `alwaysOutOfDate` to silence Xcode input/output dependency warning during IT builds.
+
 ## 1.0.8
 
 * macOS: implement `dismissContextMenu` and honor optional `autoDismissMs` on `popUpContextMenu` (reply Success first, then show; cancel tracking on a timer so driver/IT cannot wedge AppKit's nested menu run loop).
